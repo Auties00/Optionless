@@ -1,11 +1,11 @@
 package it.auties.optional;
 
-import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Type;
-import com.sun.tools.javac.code.TypeTag;
-import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.model.JavacElements;
-import com.sun.tools.javac.tree.*;
+import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
+import com.sun.tools.javac.tree.TreeMaker;
+import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Name;
@@ -18,25 +18,30 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
+import static com.sun.tools.javac.code.TypeTag.BOT;
 import static com.sun.tools.javac.tree.TreeInfo.symbolFor;
+import static com.sun.tools.javac.util.List.*;
 import static com.sun.tools.javac.util.List.nil;
 import static com.sun.tools.javac.util.List.of;
+import static javax.lang.model.element.Modifier.STATIC;
 
 @AllArgsConstructor
 public class OptionalTranslator extends TreeTranslator {
     private final TreeMaker maker;
     private final Types types;
+    private final Symtab symtab;
     private final Names names;
     private ListBuffer<JCTree> generatedLambdas; // Can be improved by translating lambdas with visitLambda if the lambda is enclosed by the right tree
-    private JCTree.JCClassDecl lastClass; // Can be improved by navigating the AST using the env
+    private JCTree.JCClassDecl enclosingClass; // Can be improved by navigating the AST using the env
+    private JCTree.JCMethodDecl enclosingMethod; // Can be improved by navigating the AST using the env
     private long functionalExpressionsCounter;
     private long functionalParametersCounter;
     private Type objectType;
     private Type objectsType;
 
-    public OptionalTranslator(TreeMaker maker, Types types, JavacElements elements, Names names) {
-        this(maker, types, names, new ListBuffer<>(),
-                null, 0, 0,
+    public OptionalTranslator(TreeMaker maker, Types types, JavacElements elements, Symtab symtab, Names names) {
+        this(maker, types, symtab, names,
+                new ListBuffer<>(), null, null, 0, 0,
                 elements.getTypeElement(Object.class.getName()).asType(),
                 elements.getTypeElement(Objects.class.getName()).asType()
         );
@@ -45,15 +50,15 @@ public class OptionalTranslator extends TreeTranslator {
     @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
         generatedLambdas.clear();
-        this.lastClass = tree;
+        this.enclosingClass = tree;
         super.visitClassDef(tree);
         tree.defs = tree.defs.appendList(generatedLambdas.toList());
     }
 
     @Override
     public void visitVarDef(JCTree.JCVariableDecl tree) {
+        super.visitVarDef(tree);
         if(!isOptionalClass(tree.sym)){
-            super.visitVarDef(tree);
             return;
         }
 
@@ -61,11 +66,10 @@ public class OptionalTranslator extends TreeTranslator {
         tree.sym.type = optionalType;
         tree.type = optionalType;
         tree.vartype = maker.Type(optionalType);
-        super.visitVarDef(tree);
     }
 
     private Type findOptionalVariableType(JCTree.JCVariableDecl variable){
-        var optionalType = getWrappedOptionalType(variable.type);
+        var optionalType = findInnerOptional(variable.type);
         if(optionalType != null){
             return types.removeWildcards(optionalType);
         }
@@ -75,24 +79,22 @@ public class OptionalTranslator extends TreeTranslator {
             return objectType;
         }
 
-        return types.removeWildcards(getWrappedOptionalType(initializer.type));
+        return types.removeWildcards(findInnerOptional(initializer.type));
     }
 
     @Override
     public void visitMethodDef(JCTree.JCMethodDecl tree) {
+        this.enclosingMethod = tree;
+        super.visitMethodDef(tree);
         var returnType = findMethodReturnType(tree);
         if(!isOptionalClass(returnType.asElement())){
-            super.visitMethodDef(tree);
             return;
         }
 
-        var optionalType = getWrappedOptionalType(returnType);
-        tree.type = optionalType;
+        var optionalType = findInnerOptional(returnType);
         tree.restype = maker.Type(optionalType);
-        if(tree.sym.type instanceof Type.MethodType methodType){
-            methodType.restype = optionalType;
-        }
-        super.visitMethodDef(tree);
+        ((Type.MethodType) tree.type).restype = optionalType;
+        ((Type.MethodType) tree.sym.type).restype = optionalType;
     }
 
     private Type findMethodReturnType(JCTree.JCMethodDecl method){
@@ -101,46 +103,45 @@ public class OptionalTranslator extends TreeTranslator {
                 .orElse(objectType);
     }
 
-    private Type getWrappedOptionalType(Type returnType) {
+    private Type findInnerOptional(Type returnType) {
         var head = returnType.getTypeArguments().head;
         if(head == null){
-            return null;
+            return types.erasure(returnType);
         }
 
         var erased = types.erasure(head);
         if(hasOptionalTypeName(erased.asElement().getQualifiedName())){
-            return getWrappedOptionalType(erased);
+            return findInnerOptional(erased);
         }
 
-        return Objects.requireNonNull(erased, "Empty optional type");
+        return Objects.requireNonNull(erased);
     }
 
     @Override
     public void visitApply(JCTree.JCMethodInvocation tree) {
+        super.visitApply(tree);
         var selected = symbolFor(tree);
         if (isOptionalNamedConstructor(selected)) {
             this.result = tree.getArguments().head;
             return;
         }
 
-        if(isOwnedByOptional(selected)){
-            desugarOptionalInvocation(tree, selected);
+        if (!isOwnedByOptional(selected)) {
             return;
         }
 
-        super.visitApply(tree);
+        desugarOptionalInvocation(tree, selected);
     }
 
     private void desugarOptionalInvocation(JCTree.JCMethodInvocation tree, Symbol selected) {
         var invoked = selected.getSimpleName().toString();
-        System.err.printf("De-sugaring %s%n", selected.getSimpleName());
         this.result = switch (invoked){
             case "get" -> desugarGetStatement(tree);
             case "orElse" -> desugarOrElseStatement(tree);
             case "isPresent" -> desugarIsPresentStatement(tree);
             case "isEmpty" -> desugarIsEmptyStatement(tree);
             case "ifPresent", "ifPresentOrElse" -> desugarIfPresentStatement(tree);
-            case "map", "flatMap" -> desugarMapStatement(tree);
+            case "map", "flatMap", "or"  -> desugarMapStatement(tree);
             default -> tree;
         };
     }
@@ -148,58 +149,56 @@ public class OptionalTranslator extends TreeTranslator {
     private JCTree.JCMethodInvocation desugarOrElseStatement(JCTree.JCMethodInvocation invocation){
         var method = findObjectsMethod("requireNonNullElse");
         var arguments = invocation.getArguments().prepend(findInvocationTarget(invocation));
-        var tree = maker.App(method, arguments);
-        tree.type = objectsType;
-        return tree;
+        return maker.App(method, arguments);
     }
 
     private JCTree.JCMethodInvocation desugarGetStatement(JCTree.JCMethodInvocation invocation){
-        var method = findObjectsMethod("requireNonNull");
-        var tree = maker.App(method, of(findInvocationTarget(invocation)));
-        tree.type = objectsType;
-        return tree;
+        return createObjectsMethod("requireNonNull", findInvocationTarget(invocation));
+    }
+
+    private JCTree.JCMethodInvocation createObjectsMethod(String method, JCTree.JCExpression expression) {
+        return maker.App(findObjectsMethod(method), of(expression));
+    }
+
+    private JCTree.JCMethodInvocation createObjectsMethod(String method, JCTree.JCVariableDecl expression) {
+        var identifier = maker.Ident(expression);
+        return maker.App(findObjectsMethod(method), of(identifier));
+    }
+
+    private JCTree.JCMethodInvocation createIdentifierMethod(JCTree.JCMethodDecl method, JCTree.JCExpression param) {
+        var identifier = maker.Ident(method.sym);
+        return maker.App(identifier, of(param));
     }
 
     private JCTree.JCMethodInvocation desugarIsPresentStatement(JCTree.JCMethodInvocation invocation){
-        var method = findObjectsMethod("nonNull");
-        var tree = maker.App(method, of(findInvocationTarget(invocation)));
-        tree.type = objectsType;
-        return tree;
+        return createObjectsMethod("nonNull", findInvocationTarget(invocation));
     }
 
     private JCTree.JCMethodInvocation desugarIsEmptyStatement(JCTree.JCMethodInvocation invocation){
-        var method = findObjectsMethod("isNull");
-        var tree = maker.App(method, of(findInvocationTarget(invocation)));
-        tree.type = objectsType;
-        return tree;
+        return createObjectsMethod("isNull", findInvocationTarget(invocation));
     }
 
     private JCTree.JCExpression desugarIfPresentStatement(JCTree.JCMethodInvocation invocation) {
         var target = findInvocationTarget(invocation);
-        var params = of(maker.Param(names.fromString("inferred%s".formatted(functionalParametersCounter++)), getWrappedOptionalType(target.type), null));
+        var paramType = findInnerOptional(target.type);
+        var parameter = createInferredParameter(paramType);
 
         var ifTrue = desugarFunctionalExpression(invocation.getArguments().head);
         var ifFalse = invocation.getArguments().size() == 2 ? desugarFunctionalExpression(invocation.getArguments().last()) : null;
-        var ifTrueStatement = maker.Exec(maker.App(maker.Ident(ifTrue.getName()).setType(lastClass.type), matchParamsToInvocation(params, ifTrue.getParameters())));
-        var ifFalseStatement = createOrElseStatement(ifFalse, params);
-        var checkCondition = maker.App(findObjectsMethod("isNull"), of(maker.Ident(params.head.getName()))).setType(lastClass.type);
+        var ifTrueStatement = maker.Exec(maker.App(maker.Ident(ifTrue.sym), matchParamsToInvocation(of(parameter), ifTrue.getParameters())));
+        var ifFalseStatement = createOrElseStatement(ifFalse, of(parameter));
+        var checkCondition = createObjectsMethod("nonNull", maker.Ident(parameter));
         var check = maker.If(checkCondition, ifTrueStatement, ifFalseStatement);
 
-        var method = maker.MethodDef(
-                maker.Modifiers(Modifier.PRIVATE),
-                names.fromString("ifPresent%s".formatted(functionalExpressionsCounter++)),
-                maker.Type(types.erasure(symbolFor(invocation).type.getReturnType())),
-                nil(),
-                null,
-                params,
-                nil(),
-                maker.Block(0L, of(check)),
-                null
-        );
+        var methodName = names.fromString("ifPresent%s".formatted(functionalExpressionsCounter++));
+        var methodType = new Type.MethodType(of(paramType), new Type.JCVoidType(), nil(), enclosingClass.sym);
+        var methodSymbol = new Symbol.MethodSymbol(createModifiers(), methodName, methodType, enclosingClass.sym);
+        methodSymbol.params = of(parameter.sym);
+        var method = maker.MethodDef(methodSymbol, maker.Block(0L, of(check)));
+        parameter.sym.owner = method.sym;
 
-        params.head.sym.owner = method.sym;
         generatedLambdas.add(method);
-        return maker.App(maker.Ident(method.getName()).setType(lastClass.type), of(target)).setType(lastClass.type);
+        return createIdentifierMethod(method, target);
     }
 
     private JCTree.JCExpressionStatement createOrElseStatement(JCTree.JCMethodDecl ifFalse, List<JCTree.JCVariableDecl> params) {
@@ -207,41 +206,40 @@ public class OptionalTranslator extends TreeTranslator {
             return null;
         }
 
-        var identifier = maker.Ident(ifFalse.getName()).setType(lastClass.type);
-        return maker.Exec(maker.App(identifier, matchParamsToInvocation(params, ifFalse.getParameters())));
+        return maker.Exec(maker.App(maker.Ident(ifFalse.sym), matchParamsToInvocation(params, ifFalse.getParameters())));
     }
 
     private JCTree.JCExpression desugarMapStatement(JCTree.JCMethodInvocation invocation) {
         var target = findInvocationTarget(invocation);
-        var params = of(maker.Param(names.fromString("inferred%s".formatted(functionalParametersCounter++)), getWrappedOptionalType(target.type), null));
+        var paramType = findInnerOptional(target.type);
+        var parameter = createInferredParameter(paramType);
 
         var mappingFunction = desugarFunctionalExpression(invocation.getArguments().head);
-        var mappingFunctionExpression = maker.App(maker.Ident(mappingFunction.getName()).setType(lastClass.type), matchParamsToInvocation(params, mappingFunction.getParameters()));
-        var checkCondition = maker.App(findObjectsMethod("isNull"), of(maker.Ident(params.head.getName()))).setType(lastClass.type);
-        var returnStatement = maker.Return(maker.Conditional(checkCondition, maker.Literal(TypeTag.BOT, null), mappingFunctionExpression));
+        var mappingFunctionExpression = maker.App(maker.Ident(mappingFunction.sym), matchParamsToInvocation(of(parameter), mappingFunction.getParameters()));
+        var checkCondition = createObjectsMethod("isNull", parameter);
+        var returnStatement = maker.Return(maker.Conditional(checkCondition, createNullType(), mappingFunctionExpression).setType(paramType));
+        returnStatement.setType(parameter.type);
 
-        var method = maker.MethodDef(
-                maker.Modifiers(Modifier.PRIVATE),
-                names.fromString("map%s".formatted(functionalExpressionsCounter++)),
-                maker.Type(types.erasure(symbolFor(invocation).type.getReturnType())),
-                nil(),
-                null,
-                params,
-                nil(),
-                maker.Block(0L, of(returnStatement)),
-                null
-        );
+        var methodName = names.fromString("map%s".formatted(functionalExpressionsCounter++));
+        var methodType = new Type.MethodType(of(paramType), paramType, nil(), enclosingClass.sym);
+        var methodSymbol = new Symbol.MethodSymbol(createModifiers(), methodName, methodType, enclosingClass.sym);
+        methodSymbol.params = of(parameter.sym);
+        var method = maker.MethodDef(methodSymbol, maker.Block(0L, of(returnStatement)));
+        parameter.sym.owner = method.sym;
 
-        params.head.sym.owner = method.sym;
         generatedLambdas.add(method);
-        return maker.Assign(target, maker.App(maker.Ident(method.getName()).setType(lastClass.type), of(target)).setType(lastClass.type));
+        return createIdentifierMethod(method, target);
+    }
+
+    private JCTree.JCLiteral createNullType() {
+        return maker.Literal(BOT, null).setType(symtab.botType);
     }
 
     private List<JCTree.JCExpression> matchParamsToInvocation(List<JCTree.JCVariableDecl> methodParams, List<JCTree.JCVariableDecl> invocationParams){
         return methodParams.stream()
                 .limit(invocationParams.size())
-                .map(variable -> maker.Ident(variable).setType(lastClass.type))
-                .collect(List.collector());
+                .map(param -> maker.Ident(param.sym))
+                .collect(collector());
     }
 
     private JCTree.JCMethodDecl desugarFunctionalExpression(JCTree.JCExpression expression) {
@@ -250,7 +248,9 @@ public class OptionalTranslator extends TreeTranslator {
             case JCTree.JCLambda lambda -> createMethodForExpression(name, lambda, extractLambdaParameters(lambda), extractLambdaBody(lambda));
             case JCTree.JCMemberReference reference -> {
                 var parameters = findMemberReferenceParameters(reference);
-                var methodCall = maker.App(maker.Select(reference.getQualifierExpression(), reference.getName()).setType(lastClass.type), parameters.map(maker::Ident));
+                var symbol = symbolFor(reference.getQualifierExpression()).asType().asElement().members().findFirst(reference.getName());
+                var select = maker.Select(reference.getQualifierExpression(), symbol);
+                var methodCall = maker.App(select, parameters.map(maker::Ident));
                 yield createMethodForExpression(name, reference, parameters, maker.Block(0L, of(maker.Exec(methodCall))));
             }
 
@@ -263,45 +263,52 @@ public class OptionalTranslator extends TreeTranslator {
             case STATEMENT -> (JCTree.JCBlock) lambda.getBody();
             case EXPRESSION -> {
                 var expression = (JCTree.JCExpression) lambda.getBody();
-                var symbol = symbolFor(expression);
-                var parsedExpression = isVoid(symbol) ? maker.Exec(expression) : maker.Return(expression);
+                var parsedExpression = isVoid(expression.type.asElement()) ? maker.Exec(expression) : maker.Return(expression);
+                parsedExpression.setType(expression.type);
+                expression.setType(expression.type);
                 yield maker.Block(0L, of(parsedExpression));
             }
         };
     }
 
     private List<JCTree.JCVariableDecl> extractLambdaParameters(JCTree.JCLambda lambda) {
+        var explicitParameters = lambda.params;
+        if(!explicitParameters.isEmpty()){
+            return explicitParameters;
+        }
+
         return lambda.getDescriptorType(types)
-                .getTypeArguments()
+                .getParameterTypes()
                 .stream()
                 .peek(types::erasure)
-                .map(type -> maker.Param(names.fromString("inferred%s".formatted(functionalParametersCounter++)), type, null))
-                .collect(List.collector());
+                .map(this::createInferredParameter)
+                .collect(collector());
+    }
+
+    private JCTree.JCVariableDecl createInferredParameter(Type type) {
+        var parameter = maker.Param(names.fromString("inferred%s".formatted(functionalParametersCounter++)), type, null);
+        parameter.sym.adr = 0;
+        return parameter;
     }
 
     private JCTree.JCMethodDecl createMethodForExpression(Name name, JCTree.JCFunctionalExpression expression, List<JCTree.JCVariableDecl> parameters, JCTree.JCBlock body) {
-        var result = maker.MethodDef(
-                maker.Modifiers(Modifier.PRIVATE),
-                name,
-                maker.Type(findFunctionalExpressionType(expression)),
-                nil(),
-                parameters,
-                nil(),
-                body,
-                null
-        );
-        result.getParameters().forEach(param -> param.sym.owner = result.sym);
-        generatedLambdas.add(result);
-        return result;
+        var methodReturnType = findFunctionalExpressionType(expression);
+        var methodType = new Type.MethodType(parameters.map(param -> param.type), methodReturnType, nil(), enclosingClass.sym);
+        var methodSymbol = new Symbol.MethodSymbol(createModifiers(), name, methodType, enclosingClass.sym);
+        methodSymbol.params = parameters.map(param -> param.sym);
+        var method = maker.MethodDef(methodSymbol, body);
+        method.getParameters().forEach(param -> param.sym.owner = method.sym);
+        generatedLambdas.add(method);
+        return method;
     }
 
     private List<JCTree.JCVariableDecl> findMemberReferenceParameters(JCTree.JCMemberReference reference) {
         return ((Symbol.MethodSymbol) reference.sym).getParameters()
-                .map(parameter -> maker.Param(names.fromString("inferred%s".formatted(functionalParametersCounter++)), parameter.type, null));
+                .map(parameter -> createInferredParameter(parameter.type));
     }
 
     private Type findFunctionalExpressionType(JCTree.JCFunctionalExpression lambda) {
-        return types.erasure(lambda.getDescriptorType(types)).getReturnType();
+        return findInnerOptional(lambda.getDescriptorType(types).getReturnType());
     }
 
     private JCTree.JCExpression findInvocationTarget(JCTree.JCMethodInvocation invocation){
@@ -353,6 +360,23 @@ public class OptionalTranslator extends TreeTranslator {
     }
 
     private boolean isVoid(Symbol symbol) {
-        return symbol != null && symbol.type.getTag() == TypeTag.VOID;
+        if(symbol == null){
+            return false;
+        }
+
+        return getSymbolReturnType(symbol).getTag() == TypeTag.VOID;
+    }
+
+    private Type getSymbolReturnType(Symbol symbol) {
+        return symbol.type instanceof Type.MethodType methodType
+                ? methodType.getReturnType() : symbol.type;
+    }
+
+    private int createModifiers(){
+        if (!enclosingMethod.getModifiers().getFlags().contains(STATIC)) {
+            return Modifier.PRIVATE;
+        }
+
+        return Modifier.PRIVATE | Modifier.STATIC;
     }
 }

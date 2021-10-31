@@ -5,7 +5,10 @@ import com.sun.source.util.Plugin;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.BasicJavacTask;
+import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.Attr;
+import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -13,14 +16,19 @@ import com.sun.tools.javac.util.Names;
 
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
+import java.util.HashSet;
+import java.util.Set;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_17)
 public class OptionalPlugin implements Plugin, TaskListener {
-    private IllegalReflection reflection;
+    private Attr attr;
+    private Enter enter;
+    private Symtab symtab;
     private Names names;
     private JavacElements elements;
     private Types types;
     private TreeMaker maker;
+    private Set<Integer> hashes;
 
     @Override
     public String getName() {
@@ -29,28 +37,50 @@ public class OptionalPlugin implements Plugin, TaskListener {
 
     @Override
     public void init(JavacTask task, String... args) {
-        this.reflection = new IllegalReflection().openJavac();
+        var reflection = new IllegalReflection();
+        reflection.openJavac();
         var context = ((BasicJavacTask) task).getContext();
         this.names = Names.instance(context);
         this.elements = JavacElements.instance(context);
         this.types = Types.instance(context);
         this.maker = TreeMaker.instance(context);
+        this.attr = Attr.instance(context);
+        this.enter = Enter.instance(context);
+        this.symtab = Symtab.instance(context);
+        this.hashes = new HashSet<>();
         task.addTaskListener(this);
     }
-    
+
     @Override
     public void finished(TaskEvent event) {
        try{
-           if (event.getKind() != TaskEvent.Kind.ANALYZE) {
+           if (event.getKind() != TaskEvent.Kind.ENTER) {
                return;
            }
 
            var unit = (JCTree.JCCompilationUnit) event.getCompilationUnit();
-           new OptionalTranslator(maker, types, elements, names).translate(unit);
+           var hash =  unit.hashCode();
+           if(hashes.contains(hash)){
+               return;
+           }
+
+           hashes.add(hash);
+           attributeCompilationUnit(unit);
+           var translator = new OptionalTranslator(maker, types, elements, symtab, names);
+           translator.translate(unit);
            System.err.println(unit);
        }catch (Throwable throwable){
            throwable.printStackTrace();
            throw new RuntimeException(throwable);
        }
+    }
+
+    private void attributeCompilationUnit(JCTree.JCCompilationUnit unit) {
+        unit.getTypeDecls()
+                .stream()
+                .filter(clazz -> clazz.getTag() == JCTree.Tag.CLASSDEF)
+                .map(clazz -> ((JCTree.JCClassDecl) clazz).sym)
+                .map(enter::getClassEnv)
+                .forEach(attr::attrib);
     }
 }

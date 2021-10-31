@@ -21,7 +21,7 @@ public class IllegalReflection {
         this.offset = findOffset();
     }
 
-    public IllegalReflection openJavac(){
+    public void openJavac(){
         try {
             var jdkCompilerModule = findCompilerModule();
             var addOpensMethod = Module.class.getDeclaredMethod("implAddOpens", String.class, Module.class);
@@ -31,7 +31,6 @@ public class IllegalReflection {
                     .map(Package::getName)
                     .filter(pack -> pack.startsWith("com.sun.tools.javac"))
                     .forEach(pack -> invokeAccessibleMethod(addOpensMethod, jdkCompilerModule, pack, IllegalReflection.class.getModule()));
-            return this;
         }catch (Throwable throwable){
             throw new UnsupportedOperationException("Cannot open Javac Modules", throwable);
         }
