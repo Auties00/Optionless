@@ -5,12 +5,14 @@ import com.sun.source.util.Plugin;
 import com.sun.source.util.TaskEvent;
 import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.BasicJavacTask;
+import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.comp.Attr;
 import com.sun.tools.javac.comp.Enter;
 import com.sun.tools.javac.model.JavacElements;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Names;
 
@@ -28,7 +30,6 @@ public class OptionalPlugin implements Plugin, TaskListener {
     private JavacElements elements;
     private Types types;
     private TreeMaker maker;
-    private Set<Integer> hashes;
 
     @Override
     public String getName() {
@@ -47,40 +48,23 @@ public class OptionalPlugin implements Plugin, TaskListener {
         this.attr = Attr.instance(context);
         this.enter = Enter.instance(context);
         this.symtab = Symtab.instance(context);
-        this.hashes = new HashSet<>();
         task.addTaskListener(this);
     }
 
     @Override
     public void finished(TaskEvent event) {
-       try{
-           if (event.getKind() != TaskEvent.Kind.ENTER) {
-               return;
-           }
+        if (event.getKind() != TaskEvent.Kind.ANALYZE) {
+            return;
+        }
 
-           var unit = (JCTree.JCCompilationUnit) event.getCompilationUnit();
-           var hash =  unit.hashCode();
-           if(hashes.contains(hash)){
-               return;
-           }
-
-           hashes.add(hash);
-           attributeCompilationUnit(unit);
-           var translator = new OptionalTranslator(maker, types, elements, symtab, names);
-           translator.translate(unit);
-           System.err.println(unit);
-       }catch (Throwable throwable){
-           throwable.printStackTrace();
-           throw new RuntimeException(throwable);
-       }
-    }
-
-    private void attributeCompilationUnit(JCTree.JCCompilationUnit unit) {
-        unit.getTypeDecls()
-                .stream()
-                .filter(clazz -> clazz.getTag() == JCTree.Tag.CLASSDEF)
-                .map(clazz -> ((JCTree.JCClassDecl) clazz).sym)
-                .map(enter::getClassEnv)
-                .forEach(attr::attrib);
+        try {
+            var unit = (JCTree.JCCompilationUnit) event.getCompilationUnit();
+            var translator = new OptionalTranslator(maker, types, symtab, names);
+            translator.translate(unit);
+            System.err.println(unit);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
     }
 }
