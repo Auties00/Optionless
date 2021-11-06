@@ -1,4 +1,4 @@
-package it.auties.optional;
+package it.auties.optional.util;
 
 import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.tree.JCTree;
@@ -6,8 +6,8 @@ import com.sun.tools.javac.tree.TreeCopier;
 import com.sun.tools.javac.tree.TreeMaker;
 
 public class LambdaParameterCopier extends TreeCopier<Void> {
-    public LambdaParameterCopier(TreeMaker M) {
-        super(M);
+    public LambdaParameterCopier(TreeMaker maker) {
+        super(maker);
     }
 
     @Override
