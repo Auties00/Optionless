@@ -84,6 +84,8 @@
         <open.jvm.module.to.optional>jdk.compiler/com.sun.tools.javac.jvm=${optional.module}</open.jvm.module.to.optional>
         <open.model.module.to.optional>jdk.compiler/com.sun.tools.javac.model=${optional.module}</open.model.module.to.optional>
         <open.processing.module.to.optional>jdk.compiler/com.sun.tools.javac.processing=${optional.module}</open.processing.module.to.optional>
+        <open.resources.module.to.optional>jdk.compiler/com.sun.tools.javac.resources=${optional.module}</open.resources.module.to.optional>
+        <open.main.module.to.optional>jdk.compiler/com.sun.tools.javac.main=${optional.module}</open.main.module.to.optional>
     </properties>
 
     <dependencies>
@@ -130,6 +132,10 @@
                         <arg>${open.processing.module.to.optional}</arg>
                         <arg>--add-exports</arg>
                         <arg>${open.model.module.to.optional}</arg>
+                        <arg>--add-exports</arg>
+                        <arg>${open.resources.module.to.optional}</arg>
+                        <arg>--add-exports</arg>
+                        <arg>${open.main.module.to.optional}</arg>
                     </compilerArgs>
                     <fork>true</fork>
                 </configuration>
@@ -157,6 +163,8 @@
                         <additionalOption>--add-exports ${open.jvm.module.to.optional}</additionalOption>
                         <additionalOption>--add-exports ${open.processing.module.to.optional}</additionalOption>
                         <additionalOption>--add-exports ${open.model.module.to.optional}</additionalOption>
+                        <additionalOption>--add-exports ${open.resources.module.to.optional}</additionalOption>
+                        <additionalOption>--add-exports ${open.main.module.to.optional}</additionalOption>
                     </additionalOptions>
                     <source>17</source>
                     <failOnError>true</failOnError>

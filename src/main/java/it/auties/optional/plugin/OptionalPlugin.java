@@ -7,12 +7,14 @@ import com.sun.source.util.TaskListener;
 import com.sun.tools.javac.api.BasicJavacTask;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Types;
+import com.sun.tools.javac.comp.Attr;
+import com.sun.tools.javac.comp.Operators;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Names;
 import it.auties.optional.transformer.*;
 import it.auties.optional.tree.Maker;
-import it.auties.optional.util.ModuleOpener;
+import it.auties.optional.util.IllegalReflection;
 import it.auties.optional.util.OptionalManager;
 
 import javax.annotation.processing.SupportedSourceVersion;
@@ -29,28 +31,31 @@ public class OptionalPlugin implements Plugin, TaskListener {
 
     @Override
     public void init(JavacTask task, String... args) {
-        ModuleOpener.openJavac();
+        IllegalReflection.openJavac();
         var context = ((BasicJavacTask) task).getContext();
         var names = Names.instance(context);
         var types = Types.instance(context);
-        var maker = TreeMaker.instance(context);
         var symtab = Symtab.instance(context);
-        var simpleMaker = new Maker(maker, names, symtab, types);
-        var manager = initializeManager(maker, simpleMaker);
+        var operators = Operators.instance(context);
+        var attr = Attr.instance(context);
+        TreeMaker maker = TreeMaker.instance(context);
+        var simpleMaker = new Maker(maker, names, symtab, attr, types, operators);
+        var manager = initializeManager(simpleMaker);
         this.translator = new OptionalTranslator(simpleMaker, types, manager);
         task.addTaskListener(this);
     }
 
-    private OptionalManager initializeManager(TreeMaker maker, Maker simpleMaker) {
+    private OptionalManager initializeManager(Maker simpleMaker) {
         return OptionalManager.instance()
-                .addTransformer(new BangTransformer(maker, simpleMaker))
-                .addTransformer(new ConditionalTransformer(maker, simpleMaker))
-                .addTransformer(new ElvisTransformer(maker, simpleMaker))
-                .addTransformer(new FilterTransformer(maker, simpleMaker))
-                .addTransformer(new MapTransformer(maker, simpleMaker))
-                .addTransformer(new NamedConstructorTransformer(maker, simpleMaker))
-                .addTransformer(new OrTransformer(maker, simpleMaker))
-                .addTransformer(new StreamTransformer(maker, simpleMaker));
+                .addTransformer(new BangTransformer(simpleMaker))
+                .addTransformer(new ConditionalTransformer(simpleMaker))
+                .addTransformer(new ElvisTransformer(simpleMaker))
+                .addTransformer(new FunctionalElvisTransformer(simpleMaker))
+                .addTransformer(new FilterTransformer(simpleMaker))
+                .addTransformer(new MapTransformer(simpleMaker))
+                .addTransformer(new NamedConstructorTransformer(simpleMaker))
+                .addTransformer(new OrTransformer(simpleMaker))
+                .addTransformer(new StreamTransformer(simpleMaker));
     }
 
     @Override

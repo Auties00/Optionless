@@ -5,13 +5,10 @@ import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
-import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.List;
 import lombok.experimental.UtilityClass;
 
 import java.lang.reflect.Modifier;
 
-import static com.sun.tools.javac.util.List.collector;
 import static javax.lang.model.element.Modifier.STATIC;
 
 @UtilityClass

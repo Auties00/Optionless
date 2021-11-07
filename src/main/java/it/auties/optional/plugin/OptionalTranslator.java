@@ -8,8 +8,10 @@ import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Name;
 import it.auties.optional.tree.Maker;
+import it.auties.optional.util.IllegalReflection;
 import it.auties.optional.util.OptionalManager;
 import lombok.RequiredArgsConstructor;
+import lombok.experimental.ExtensionMethod;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -17,6 +19,7 @@ import java.util.Optional;
 import static com.sun.tools.javac.tree.TreeInfo.symbolFor;
 
 @RequiredArgsConstructor
+@ExtensionMethod(IllegalReflection.class)
 public class OptionalTranslator extends TreeTranslator {
     private final Maker maker;
     private final Types types;
@@ -47,13 +50,13 @@ public class OptionalTranslator extends TreeTranslator {
     }
 
     private Type findOptionalVariableType(JCTree.JCVariableDecl variable){
-        var optionalType = findInnerOptional(variable.type);
+        var optionalType = maker.unboxOptional(variable.type);
         if(optionalType != null){
             return types.removeWildcards(optionalType);
         }
 
         var initializer = Objects.requireNonNull(variable.getInitializer(), "findOptionalVariableType: null initializer");
-        return types.removeWildcards(findInnerOptional(initializer.type));
+        return types.removeWildcards(maker.unboxOptional(initializer.type));
     }
 
     @Override
@@ -65,7 +68,7 @@ public class OptionalTranslator extends TreeTranslator {
             return;
         }
 
-        var optionalType = findInnerOptional(returnType);
+        var optionalType = maker.unboxOptional(returnType);
         tree.restype = maker.createTypeExpression(optionalType);
         ((Type.MethodType) tree.type).restype = optionalType;
         ((Type.MethodType) tree.sym.type).restype = optionalType;
@@ -75,20 +78,6 @@ public class OptionalTranslator extends TreeTranslator {
         return Optional.of(method.sym.getReturnType())
                 .map(types::removeWildcards)
                 .orElseThrow();
-    }
-
-    private Type findInnerOptional(Type returnType) {
-        var head = returnType.getTypeArguments().head;
-        if(head == null){
-            return types.boxedTypeOrType(types.erasure(returnType));
-        }
-
-        var erased = types.boxedTypeOrType(types.erasure(head));
-        if(hasOptionalTypeName(erased.asElement().getQualifiedName())){
-            return findInnerOptional(erased);
-        }
-
-        return Objects.requireNonNull(erased);
     }
 
     @Override

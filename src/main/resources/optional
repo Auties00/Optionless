@@ -1,14 +1,14 @@
-T get() 👌
-boolean isPresent() 👌
-boolean isEmpty() 👌
-void ifPresent(Consumer<? super T>) 👌
-void ifPresentOrElse(Consumer<? super T>, Runnable) 👌
-Optional<T> filter(Predicate<? super T>) 👌
-<U> Optional<U> map(Function<? super T, ? extends U>) 👌
-<U> Optional<U> flatMap(Function<? super T, ? extends Optional<? extends U>>) 👌
-Optional<T> or(Supplier<? extends Optional<? extends T>>) 👌
-Stream<T> stream() 👌
-T orElse(T) 👌
-T orElseGet(Supplier<? extends T>) 👌
-T orElseThrow() 👌
-<X extends Throwable> T orElseThrow(Supplier<? extends X>) throws X 👌
+T get()
+boolean isPresent()
+boolean isEmpty()
+void ifPresent(Consumer<? super T>)
+void ifPresentOrElse(Consumer<? super T>, Runnable)
+Optional<T> filter(Predicate<? super T>)
+<U> Optional<U> map(Function<? super T, ? extends U>)
+<U> Optional<U> flatMap(Function<? super T, ? extends Optional<? extends U>>)
+Optional<T> or(Supplier<? extends Optional<? extends T>>)
+Stream<T> stream()
+T orElse(T)
+T orElseGet(Supplier<? extends T>)
+T orElseThrow()
+<X extends Throwable> T orElseThrow(Supplier<? extends X>) throws X

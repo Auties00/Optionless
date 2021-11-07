@@ -14,9 +14,9 @@ public record OptionalManager(Set<JCTree.JCMethodDecl> generatedLambdas,
     @Getter
     private static final OptionalManager instance = new OptionalManager(new HashSet<>(), new HashSet<>());
 
-    public OptionalManager addLambda(JCTree.JCMethodDecl methods){
+    public JCTree.JCMethodDecl addLambda(JCTree.JCMethodDecl methods){
         generatedLambdas.add(methods);
-        return this;
+        return methods;
     }
 
     public OptionalManager addTransformer(OptionalTransformer translator){

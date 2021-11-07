@@ -1,32 +1,26 @@
 package it.auties.optional.transformer;
 
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.tree.JCTree;
-import com.sun.tools.javac.tree.TreeMaker;
 import it.auties.optional.tree.Maker;
 
 import java.util.Set;
 
-import static com.sun.tools.javac.util.List.of;
-
-public class MapTransformer extends FunctionalTransformer{
-    public MapTransformer(TreeMaker treeMaker, Maker callMaker) {
-        super(treeMaker, callMaker);
+public class MapTransformer extends FunctionalTransformer {
+    public MapTransformer(Maker callMaker) {
+        super(callMaker);
     }
 
     @Override
-    public JCTree.JCStatement createMethodBody(String instruction, JCTree.JCMethodDecl enclosingMethod, JCTree.JCMethodInvocation invocation, JCTree.JCVariableDecl parameter, Symbol.ClassSymbol enclosingClass) {
-        var mappingFunction = callMaker.createMethodFromLambda(enclosingClass, enclosingMethod, invocation.getArguments().head);
-        var mappingFunctionExpression = treeMaker.App(treeMaker.Ident(mappingFunction.sym), callMaker.createIdentifiesFromParameters(of(parameter), mappingFunction.getParameters()));
-        var checkCondition = callMaker.createObjectsCall("isNull", of(treeMaker.Ident(parameter.sym)));
-        var conditional = treeMaker.Conditional(checkCondition, callMaker.createNullType(), mappingFunctionExpression);
-        return treeMaker.Return(conditional.setType(parameter.type))
-                .setType(parameter.type);
-    }
-
-    @Override
-    public String generatedMethodName() {
+    public String name() {
         return "mapper";
+    }
+
+    @Override
+    public JCTree.JCStatement body() {
+        var checkCondition = callMaker.createNullCheck(createIdentifierForParameter(0), false);
+        var conditional = callMaker.trees().Conditional(checkCondition, callMaker.createNullType(), generatedInvocations.head);
+        return callMaker.trees().Return(conditional.setType(generatedInvocations.head.type))
+                .setType(generatedInvocations.head.type);
     }
 
     @Override
