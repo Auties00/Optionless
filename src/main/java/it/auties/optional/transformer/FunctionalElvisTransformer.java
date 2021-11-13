@@ -12,21 +12,16 @@ public class FunctionalElvisTransformer extends FunctionalTransformer{
     }
 
     @Override
-    public Set<String> supportedInstructions() {
-        return Set.of("orElse", "orElseGet");
-    }
-
-    @Override
-    public String name() {
-        return "elvis";
-    }
-
-    @Override
     public JCTree.JCStatement body() {
         var valueSymbol = createIdentifierForParameter(0);
-        var checkCondition = callMaker.createNullCheck(valueSymbol, false);
-        var conditional = callMaker.trees().Conditional(checkCondition, Objects.requireNonNullElse(generatedInvocations.head, createIdentifierForParameter(1)), valueSymbol);
-        return callMaker.trees().Return(conditional.setType(valueSymbol.type))
+        var checkCondition = maker.createNullCheck(valueSymbol, false);
+        var conditional = maker.trees().Conditional(checkCondition, Objects.requireNonNullElse(generatedInvocations.head, createIdentifierForParameter(1)), valueSymbol);
+        return maker.trees().Return(conditional.setType(valueSymbol.type))
                 .setType(valueSymbol.type);
+    }
+
+    @Override
+    public Set<String> supportedInstructions() {
+        return Set.of("orElse", "orElseGet");
     }
 }

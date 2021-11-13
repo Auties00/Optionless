@@ -15,7 +15,7 @@ public class ElvisTransformer extends OptionalTransformer{
     @Override
     public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation) {
         var target = Elements.getCallerExpression(invocation);
-        return callMaker.createNullCheck(target, Objects.equals(instruction, "isPresent"));
+        return maker.createNullCheck(target, Objects.equals(instruction, "isPresent"));
     }
 
     @Override

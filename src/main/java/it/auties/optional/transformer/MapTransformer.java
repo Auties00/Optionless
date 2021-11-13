@@ -11,15 +11,10 @@ public class MapTransformer extends FunctionalTransformer {
     }
 
     @Override
-    public String name() {
-        return "mapper";
-    }
-
-    @Override
     public JCTree.JCStatement body() {
-        var checkCondition = callMaker.createNullCheck(createIdentifierForParameter(0), false);
-        var conditional = callMaker.trees().Conditional(checkCondition, callMaker.createNullType(), generatedInvocations.head);
-        return callMaker.trees().Return(conditional.setType(generatedInvocations.head.type))
+        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
+        var conditional = maker.trees().Conditional(checkCondition, maker.createNullType(), generatedInvocations.head);
+        return maker.trees().Return(conditional.setType(generatedInvocations.head.type))
                 .setType(generatedInvocations.head.type);
     }
 

@@ -9,7 +9,7 @@ import java.util.Set;
 
 @AllArgsConstructor
 public abstract class OptionalTransformer {
-    protected final Maker callMaker;
+    protected final Maker maker;
 
     public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation){
         throw new UnsupportedOperationException("%s has no transformer implementation".formatted(this.getClass().getName()));

@@ -7,12 +7,13 @@ import lombok.experimental.Accessors;
 
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Accessors(fluent = true)
 public record OptionalManager(Set<JCTree.JCMethodDecl> generatedLambdas,
-                              Set<OptionalTransformer> transformers) {
+                              Set<OptionalTransformer> transformers, AtomicInteger counter) {
     @Getter
-    private static final OptionalManager instance = new OptionalManager(new HashSet<>(), new HashSet<>());
+    private static final OptionalManager instance = new OptionalManager(new HashSet<>(), new HashSet<>(), new AtomicInteger());
 
     public JCTree.JCMethodDecl addLambda(JCTree.JCMethodDecl methods){
         generatedLambdas.add(methods);

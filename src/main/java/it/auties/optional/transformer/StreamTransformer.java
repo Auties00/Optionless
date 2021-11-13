@@ -13,7 +13,7 @@ public class StreamTransformer extends OptionalTransformer{
 
     @Override
     public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation) {
-        return callMaker.makeStream(Elements.getCallerExpression(invocation));
+        return maker.makeStream(Elements.getCallerExpression(invocation));
     }
 
     @Override

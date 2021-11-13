@@ -11,15 +11,12 @@ public class OrTransformer extends FunctionalTransformer {
     }
 
     @Override
-    public String name() {
-        return "otherwise";
-    }
-
-    @Override
     public JCTree.JCStatement body() {
-        var checkCondition = callMaker.createNullCheck(createIdentifierForParameter(0), false);
-        return callMaker.trees()
-                .If(checkCondition, callMaker.trees().Exec(generatedInvocations.head), null);
+        var value = createIdentifierForParameter(0);
+        var checkCondition = maker.createNullCheck(value, false);
+        var conditional = maker.trees().Conditional(checkCondition, generatedInvocations.head, maker.createNullType());
+        return maker.trees().Return(conditional.setType(value.type))
+                .setType(value.type);
     }
 
     @Override

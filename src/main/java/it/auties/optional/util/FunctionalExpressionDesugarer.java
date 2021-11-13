@@ -12,21 +12,20 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.ListBuffer;
 import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.RequiredArgsConstructor;
+import lombok.*;
+import lombok.experimental.Accessors;
 
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static com.sun.tools.javac.util.List.of;
 
 @RequiredArgsConstructor
-public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
+public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
     private final Maker maker;
     private final Symbol.ClassSymbol enclosingClass;
     private final JCTree.JCMethodDecl enclosingMethod;
-    private int counter;
 
     @Override
     public JCTree.JCMethodDecl visitLambdaExpression(LambdaExpressionTree node, Void unused) {
@@ -34,7 +33,7 @@ public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
         var parameters = createParameters(lambda);
         var body = createBody(lambda);
         var returnType = maker.unboxOptional(lambda.getDescriptorType(maker.types()).getReturnType());
-        return maker.createMethod(enclosingClass, enclosingMethod, returnType, "lambda$%s".formatted(counter++), parameters, body, false);
+        return maker.createMethod(enclosingClass, enclosingMethod, lambda.type, returnType, maker.uniqueName("lambda"), parameters, body, false);
     }
 
     @Override
@@ -43,7 +42,7 @@ public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
         var parameters = createParameters(reference);
         var body = createBody(reference, parameters);
         var returnType = maker.unboxOptional(reference.getDescriptorType(maker.types()).getReturnType());
-        return maker.createMethod(enclosingClass, enclosingMethod, returnType, "reference$%s".formatted(counter++), parameters, maker.trees().Block(0L, of(body)), false);
+        return maker.createMethod(enclosingClass, enclosingMethod, reference.type, returnType, maker.uniqueName("reference"), parameters, maker.trees().Block(0L, of(body)), false);
     }
 
     private List<JCTree.JCVariableDecl> createParameters(JCTree.JCFunctionalExpression expression){
@@ -54,14 +53,14 @@ public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
                         .getParameterTypes()
                         .stream()
                         .map(type -> createLambdaParameter(paramsIterator, type))
-                        .toList();
+                        .collect(Collectors.toList());
             }
 
             case JCTree.JCMemberReference reference -> ((Symbol.MethodSymbol) reference.sym).getParameters()
                     .stream()
                     .map(parameter -> parameter.type)
-                    .map(type -> maker.createInferredParameter(null, type))
-                    .toList();
+                    .map(maker::createInferredParameter)
+                    .collect(Collectors.toList());
 
             default -> throw new IllegalStateException("Cannot create parameters for unknown functional expression: " + expression);
         };
@@ -106,12 +105,8 @@ public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
         return Elements.isVoid(reference.sym) ? maker.trees().Exec(result) : maker.trees().Return(result);
     }
 
-    @AllArgsConstructor(access = AccessLevel.PRIVATE)
     private class ContextualIdentityScanner extends TreeScanner<List<JCTree.JCIdent>, Void> {
-        private final ListBuffer<JCTree.JCIdent> identifiers;
-        public ContextualIdentityScanner() {
-            this(new ListBuffer<>());
-        }
+        private final ListBuffer<JCTree.JCIdent> identifiers = new ListBuffer<>();
 
         @Override
         public List<JCTree.JCIdent> visitIdentifier(IdentifierTree node, Void unused) {
@@ -130,14 +125,27 @@ public class LambdaDesugarer extends TreeScanner<JCTree.JCMethodDecl, Void> {
 
         @Override
         public List<JCTree.JCIdent> scan(Tree tree, Void unused) {
+            identifiers.clear();
             super.scan(tree, unused);
             return identifiers.toList();
         }
 
         @Override
         public List<JCTree.JCIdent> scan(Iterable<? extends Tree> nodes, Void unused) {
+            identifiers.clear();
             super.scan(nodes, unused);
             return identifiers.toList();
+        }
+    }
+
+    @Value
+    @EqualsAndHashCode(callSuper = true)
+    @Accessors(fluent = true)
+    public static class FunctionalExpressionType extends Type.MethodType{
+        Type erased;
+        public FunctionalExpressionType(MethodType type, Type erased) {
+            super(type.argtypes, type.restype, type.thrown, type.tsym);
+            this.erased = erased;
         }
     }
 }

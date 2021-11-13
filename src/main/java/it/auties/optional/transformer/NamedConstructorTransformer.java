@@ -13,14 +13,14 @@ public class NamedConstructorTransformer extends OptionalTransformer{
     @Override
     public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation) {
         return switch (instruction){
-            case "empty" -> callMaker.createNullType();
+            case "empty" -> maker.createNullType();
             case "of" -> {
                 var parameter = invocation.getArguments().head;
                 if (parameter.type.isPrimitive()){
                     yield parameter;
                 }
 
-                yield callMaker.createNullAssert(parameter);
+                yield maker.createNullAssert(parameter);
             }
             case "ofNullable" -> invocation.getArguments().head;
             default -> throw new IllegalStateException("NamedConstructorTransformer: %s is not a supported instruction".formatted(instruction));

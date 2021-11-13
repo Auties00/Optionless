@@ -13,7 +13,7 @@ import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
 import it.auties.optional.util.IllegalReflection;
-import it.auties.optional.util.LambdaDesugarer;
+import it.auties.optional.util.FunctionalExpressionDesugarer;
 import it.auties.optional.util.OptionalManager;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -46,10 +46,9 @@ public class Maker {
     private OptionalManager manager;
     private Type streamType;
     private Symbol.ClassSymbol noSuchElementSymbol;
-    private int counter;
 
     public Maker(TreeMaker trees, Names names, Symtab symtab, Attr attr, Types types, Operators operators) {
-        this(trees, names, symtab, attr, types, operators, OptionalManager.instance(), null, null, 0);;
+        this(trees, names, symtab, attr, types, operators, OptionalManager.instance(), null, null);
     }
 
     public JCTree.JCIdent identifier(Symbol symbol){
@@ -93,14 +92,18 @@ public class Maker {
                 .allMatch(parameterType -> types.isAssignable(types.erasure(expression.type), types.erasure(parameterType)));
     }
 
+    public JCTree.JCVariableDecl createInferredParameter(Type type) {
+        return createInferredParameter(null, type);
+    }
+
     public JCTree.JCVariableDecl createInferredParameter(Name name, Type type) {
-        var parameter = trees.Param(Objects.requireNonNullElse(name, names.fromString("inferred%s".formatted(counter++))), type, null);
+        var parameter = trees.Param(Objects.requireNonNullElse(name, names.fromString("inferred%s".formatted(manager.counter().getAndIncrement()))), unboxOptional(type), null);
         parameter.sym.adr = 0;
         return parameter;
     }
 
     public JCTree.JCVariableDecl createParameterFromIdentifier(JCTree.JCIdent identifier) {
-        var parameter = trees.Param(identifier.getName(), identifier.sym.type, null);
+        var parameter = trees.Param(identifier.getName(), identifier.type, null);
         parameter.sym.adr = 0;
         return parameter;
     }
@@ -116,7 +119,7 @@ public class Maker {
         }
 
         var erased = types.erasure(head);
-        if(erased.asElement().getQualifiedName().contentEquals(Optional.class.getName())){
+        if(erased.asElement().getQualifiedName().startsWith(names.fromString(Optional.class.getName()))){
             return unboxOptional(erased);
         }
 
@@ -134,10 +137,11 @@ public class Maker {
         return symtab.getClass(baseModule, className);
     }
 
-    public JCTree.JCMethodDecl createMethod(Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, Type returnType, String name, List<JCTree.JCVariableDecl> parameters, JCTree.JCBlock body, boolean box) {
+    public JCTree.JCMethodDecl createMethod(Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, Type originalType, Type returnType, Name name, List<JCTree.JCVariableDecl> parameters, JCTree.JCBlock body, boolean box) {
         eraseAndBoxParameters(parameters, box);
-        var methodName = names.fromString("%s%s".formatted(name, counter++));
+        var methodName = names.fromString("%s%s".formatted(name, manager.counter().getAndIncrement()));
         var methodType = new Type.MethodType(parameters.map(param -> param.type), eraseAndBox(returnType, box), nil(), enclosingClass);
+        if(originalType != null) methodType = new FunctionalExpressionDesugarer.FunctionalExpressionType(methodType, originalType);
         var methodSymbol = new Symbol.MethodSymbol(Elements.createModifiers(enclosingMethod), methodName, methodType, enclosingClass);
         methodSymbol.params = parameters.map(parameter -> parameter.sym);
         var method = trees.MethodDef(methodSymbol, body);
@@ -179,7 +183,11 @@ public class Maker {
     }
 
     public JCTree.JCMethodDecl createMethodFromLambda(Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, JCTree.JCExpression expression) {
-        var desugarer = new LambdaDesugarer(this, enclosingClass, enclosingMethod);
+        var desugarer = new FunctionalExpressionDesugarer(this, enclosingClass, enclosingMethod);
         return desugarer.scan(expression, null);
+    }
+
+    public Name uniqueName(String name) {
+        return names.fromString(name + "$" + manager.counter().getAndIncrement());
     }
 }

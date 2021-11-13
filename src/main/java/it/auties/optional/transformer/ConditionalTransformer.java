@@ -6,24 +6,18 @@ import it.auties.optional.tree.Maker;
 import java.util.Set;
 
 public class ConditionalTransformer extends FunctionalTransformer{
-
     public ConditionalTransformer(Maker callMaker) {
         super(callMaker);
     }
 
     @Override
-    public String name() {
-        return "conditional";
-    }
-
-    @Override
     public JCTree.JCStatement body() {
-        var checkCondition = callMaker.createNullCheck(createIdentifierForParameter(0), true);
-        return callMaker.trees().If(checkCondition, callMaker.trees().Exec(generatedInvocations.head), orElse());
+        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), true);
+        return maker.trees().If(checkCondition, maker.trees().Exec(generatedInvocations.head), orElse());
     }
 
     private JCTree.JCExpressionStatement orElse() {
-        return generatedInvocations.size() >= 2 ? callMaker.trees().Exec(generatedInvocations.get(1))
+        return generatedInvocations.size() >= 2 ? maker.trees().Exec(generatedInvocations.get(1))
                 : null;
     }
 
