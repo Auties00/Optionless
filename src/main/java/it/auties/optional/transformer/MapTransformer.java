@@ -14,8 +14,7 @@ public class MapTransformer extends FunctionalTransformer {
     public JCTree.JCStatement body() {
         var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
         var conditional = maker.trees().Conditional(checkCondition, maker.createNullType(), generatedInvocations.head);
-        return maker.trees().Return(conditional.setType(generatedInvocations.head.type))
-                .setType(generatedInvocations.head.type);
+        return maker.trees().Return(conditional);
     }
 
     @Override

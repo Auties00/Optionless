@@ -23,12 +23,8 @@ public class Elements {
         };
     }
 
-    public int createModifiers(JCTree.JCMethodDecl enclosingMethod){
-        if (enclosingMethod == null || !enclosingMethod.getModifiers().getFlags().contains(STATIC)) {
-            return Modifier.PRIVATE;
-        }
-
-        return Modifier.PRIVATE | Modifier.STATIC;
+    public long createModifiers(JCTree.JCMethodDecl enclosingMethod){
+        return (enclosingMethod.mods.flags & ~Modifier.PUBLIC  & ~Modifier.PRIVATE & ~Modifier.PROTECTED) | Modifier.PRIVATE;
     }
 
     public boolean isVoid(Symbol symbol) {
@@ -36,7 +32,7 @@ public class Elements {
                 && getSymbolReturnType(symbol).getTag() == TypeTag.VOID;
     }
 
-    private Type getSymbolReturnType(Symbol symbol) {
+    public Type getSymbolReturnType(Symbol symbol) {
         return symbol.type instanceof Type.MethodType methodType
                 ? methodType.getReturnType() : symbol.type;
     }

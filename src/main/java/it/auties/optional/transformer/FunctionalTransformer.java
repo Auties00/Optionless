@@ -5,8 +5,8 @@ import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.List;
 import it.auties.optional.tree.Elements;
+import it.auties.optional.tree.FunctionalExpressionDesugarer;
 import it.auties.optional.tree.Maker;
-import it.auties.optional.util.FunctionalExpressionDesugarer;
 
 import java.util.stream.Stream;
 
@@ -31,15 +31,26 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
         this.enclosingMethod = enclosingMethod;
         this.invocation = invocation;
 
-        this.generatedLambdas = generateFunctionalExpressions(enclosingClass, enclosingMethod, invocation);
+        this.generatedLambdas = generateFunctionalExpressions();
         var callerExpression = Elements.getCallerExpression(invocation);
         var parameters = createRootParameters(callerExpression);
 
-        var returnType = maker.unboxOptional(callerExpression.type);
-        this.generatedMethod = maker.createMethod(enclosingClass, enclosingMethod, null, returnType, maker.uniqueName(instruction), parameters, null, true);
+        this.generatedMethod = maker.newMethod()
+                .enclosingClass(enclosingClass)
+                .modelMethod(enclosingMethod)
+                .returnType(maker.boxed(maker.unboxOptional(callerExpression.type)))
+                .name(instruction)
+                .parameters(parameters)
+                .toTree();
         this.generatedInvocations = generateFunctionalCalls();
-        generatedMethod.body = maker.trees().Block(0L, of(body()));
+        generatedMethod.body = createBody();
         return maker.createCallOnIdentifier(generatedMethod, createRootArguments(callerExpression));
+    }
+
+    private JCTree.JCBlock createBody() {
+        return maker.trees()
+                .at(generatedMethod.pos())
+                .Block(0L, of(body()));
     }
 
     private List<JCTree.JCExpression> createRootArguments(JCTree.JCExpression callerExpression) {
@@ -70,7 +81,7 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
         });
     }
 
-    private List<JCTree.JCMethodDecl> generateFunctionalExpressions(Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, JCTree.JCMethodInvocation invocation) {
+    private List<JCTree.JCMethodDecl> generateFunctionalExpressions() {
         return invocation.getArguments()
                 .stream()
                 .map(TreeInfo::skipParens)
@@ -85,16 +96,17 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
     }
 
     private List<JCTree.JCVariableDecl> createRootParametersFromInvocation(JCTree.JCExpression caller) {
-        return invocation.getArguments()
-                .map(parameter -> maker.createInferredParameter(parameter.type))
-                .prepend(maker.createInferredParameter(caller.type));
+        return invocation.getArguments().stream()
+                .map(expression -> maker.createInferredParameter(expression.type))
+                .collect(List.collector())
+                .prepend(maker.createInferredParameter(maker.boxed(caller.type)));
     }
 
     private List<JCTree.JCVariableDecl> createRootParametersFromLambdas(JCTree.JCExpression caller) {
         return generatedLambdas.stream()
                 .flatMap(this::removeErasedTypeArguments)
                 .collect(List.collector())
-                .prepend(maker.createInferredParameter(caller.type));
+                .prepend(maker.createInferredParameter(maker.boxed(caller.type)));
     }
 
     private Stream<JCTree.JCVariableDecl> removeErasedTypeArguments(JCTree.JCMethodDecl lambda) {

@@ -1,4 +1,4 @@
-package it.auties.optional.util;
+package it.auties.optional.tree;
 
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LambdaExpressionTree;
@@ -8,15 +8,18 @@ import com.sun.source.util.TreeScanner;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.ListBuffer;
-import it.auties.optional.tree.Elements;
-import it.auties.optional.tree.Maker;
-import lombok.*;
+import lombok.EqualsAndHashCode;
+import lombok.RequiredArgsConstructor;
+import lombok.Value;
 import lombok.experimental.Accessors;
 
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static com.sun.tools.javac.util.List.of;
@@ -26,6 +29,7 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
     private final Maker maker;
     private final Symbol.ClassSymbol enclosingClass;
     private final JCTree.JCMethodDecl enclosingMethod;
+    private final IdentifierTranslator identifierTranslator = new IdentifierTranslator();
 
     @Override
     public JCTree.JCMethodDecl visitLambdaExpression(LambdaExpressionTree node, Void unused) {
@@ -33,7 +37,16 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var parameters = createParameters(lambda);
         var body = createBody(lambda);
         var returnType = maker.unboxOptional(lambda.getDescriptorType(maker.types()).getReturnType());
-        return maker.createMethod(enclosingClass, enclosingMethod, lambda.type, returnType, maker.uniqueName("lambda"), parameters, body, false);
+        var method = maker.newMethod()
+                .enclosingClass(enclosingClass)
+                .modelMethod(enclosingMethod)
+                .originalType(lambda.type)
+                .returnType(returnType)
+                .name("lambda")
+                .parameters(parameters)
+                .body(body)
+                .toTree();
+        return identifierTranslator.redefine(method);
     }
 
     @Override
@@ -42,7 +55,16 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var parameters = createParameters(reference);
         var body = createBody(reference, parameters);
         var returnType = maker.unboxOptional(reference.getDescriptorType(maker.types()).getReturnType());
-        return maker.createMethod(enclosingClass, enclosingMethod, reference.type, returnType, maker.uniqueName("reference"), parameters, maker.trees().Block(0L, of(body)), false);
+        var method = maker.newMethod()
+                .enclosingClass(enclosingClass)
+                .modelMethod(enclosingMethod)
+                .originalType(reference.type)
+                .returnType(returnType)
+                .name("reference")
+                .parameters(parameters)
+                .body(maker.trees().Block(0L, of(body)))
+                .toTree();
+        return identifierTranslator.redefine(method);
     }
 
     private List<JCTree.JCVariableDecl> createParameters(JCTree.JCFunctionalExpression expression){
@@ -52,15 +74,17 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
                 yield lambda.getDescriptorType(maker.types())
                         .getParameterTypes()
                         .stream()
-                        .map(type -> createLambdaParameter(paramsIterator, type))
+                        .map(parameter -> createLambdaParameter(paramsIterator, parameter))
                         .collect(Collectors.toList());
             }
 
-            case JCTree.JCMemberReference reference -> ((Symbol.MethodSymbol) reference.sym).getParameters()
-                    .stream()
-                    .map(parameter -> parameter.type)
-                    .map(maker::createInferredParameter)
-                    .collect(Collectors.toList());
+            case JCTree.JCMemberReference reference -> {
+                var referenceParameters = ((Symbol.MethodSymbol) reference.sym).getParameters();
+                yield referenceParameters
+                        .stream()
+                        .map(parameter -> maker.createInferredParameter(parameter.type))
+                        .collect(Collectors.toList());
+            }
 
             default -> throw new IllegalStateException("Cannot create parameters for unknown functional expression: " + expression);
         };
@@ -69,9 +93,8 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         return List.from(parameters);
     }
 
-    private void completeWithScopedParameters(JCTree.JCFunctionalExpression expression, java.util.List<JCTree.JCVariableDecl> parameters) {
-        new ContextualIdentityScanner()
-                .scan(expression, null)
+    private void completeWithScopedParameters(JCTree.JCFunctionalExpression expression, Collection<JCTree.JCVariableDecl> parameters) {
+        new ContextualIdentityScanner().scan(expression, null)
                 .stream()
                 .filter(identifier -> parameters.stream().noneMatch(result -> Objects.equals(result.sym.asType(), identifier.type)))
                 .map(maker::createParameterFromIdentifier)
@@ -135,6 +158,34 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
             identifiers.clear();
             super.scan(nodes, unused);
             return identifiers.toList();
+        }
+    }
+
+    private class IdentifierTranslator extends TreeTranslator {
+        private JCTree.JCMethodDecl method;
+        public JCTree.JCMethodDecl redefine(JCTree.JCMethodDecl method){
+            this.method = method;
+            return translate(method);
+        }
+
+        @Override
+        public void visitIdent(JCTree.JCIdent tree) {
+            super.visitIdent(tree);
+            var owner = tree.sym.getEnclosingElement();
+            if(!Objects.equals(owner, enclosingClass) && !Objects.equals(owner, enclosingMethod.sym)){
+                return;
+            }
+
+            findMatchingParameter(tree)
+                    .map(maker::identifier)
+                    .ifPresent(identifier -> this.result = identifier);
+        }
+
+        private Optional<Symbol.VarSymbol> findMatchingParameter(JCTree.JCIdent tree) {
+            return method.params.stream()
+                    .filter(parameter -> parameter.getName().contentEquals(tree.name))
+                    .map(parameter -> parameter.sym)
+                    .findFirst();
         }
     }
 

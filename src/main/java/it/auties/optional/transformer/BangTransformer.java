@@ -14,12 +14,13 @@ public class BangTransformer extends FunctionalTransformer{
     public JCTree.JCStatement body() {
         var value = createIdentifierForParameter(0);
         var checkCondition = maker.createNullCheck(value, false);
-        return maker.trees().If(checkCondition, throwException(), returnIdentifier(value));
+        return maker.trees()
+                .If(checkCondition, throwException(), returnIdentifier(value));
     }
 
     private JCTree.JCStatement throwException(){
         if (generatedInvocations.isEmpty()) {
-            return maker.createNoSuchElementException();
+            return maker.createThrowNoSuchElementException();
         }
 
         return maker.trees().Throw(generatedInvocations.head)

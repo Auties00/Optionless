@@ -6,7 +6,6 @@ import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
 import it.auties.optional.tree.Maker;
 import it.auties.optional.util.IllegalReflection;
 import it.auties.optional.util.OptionalManager;
@@ -28,6 +27,48 @@ public class OptionalTranslator extends TreeTranslator {
     private JCTree.JCMethodDecl enclosingMethod;
 
     @Override
+    public <T extends JCTree> T translate(T tree) {
+        removeOptional(tree);
+        return super.translate(tree);
+    }
+
+    @Override
+    public <T extends JCTree> List<T> translate(List<T> trees) {
+        trees.forEach(this::removeOptional);
+        return super.translate(trees);
+    }
+
+    @Override
+    public List<JCTree.JCTypeParameter> translateTypeParams(List<JCTree.JCTypeParameter> trees) {
+        trees.forEach(this::removeOptional);
+        return super.translateTypeParams(trees);
+    }
+
+    @Override
+    public List<JCTree.JCVariableDecl> translateVarDefs(List<JCTree.JCVariableDecl> trees) {
+        trees.forEach(this::removeOptional);
+        return super.translateVarDefs(trees);
+    }
+
+    private void removeOptional(JCTree tree) {
+        if(tree == null){
+            return;
+        }
+
+        var type = tree.type;
+        if(type == null){
+            return;
+        }
+
+        var element = type.asElement();
+        if(element == null || !maker.hasOptionalName(element.getQualifiedName())){
+            return;
+        }
+
+        tree.type = maker.unboxOptional(tree.type);
+    }
+
+    @Override
     public void visitClassDef(JCTree.JCClassDecl tree) {
         this.enclosingClass = tree;
         super.visitClassDef(tree);
@@ -45,7 +86,6 @@ public class OptionalTranslator extends TreeTranslator {
 
         var optionalType = findOptionalVariableType(tree);
         tree.sym.type = optionalType;
-        tree.type = optionalType;
         tree.vartype = maker.createTypeExpression(optionalType);
     }
 
@@ -103,19 +143,15 @@ public class OptionalTranslator extends TreeTranslator {
 
     private boolean isOwnedByOptional(Symbol selected) {
         return selected.getEnclosingElement() instanceof Symbol.ClassSymbol classSymbol
-                && hasOptionalTypeName(classSymbol.getQualifiedName());
+                && maker.hasOptionalName(classSymbol.getQualifiedName());
     }
 
     private boolean isOptionalClass(Symbol symbol){
         return switch (symbol){
             case null -> false;
-            case Symbol.MethodSymbol method -> hasOptionalTypeName(method.getReturnType().asElement().getQualifiedName());
-            case Symbol.VarSymbol variable -> hasOptionalTypeName(variable.asType().asElement().getQualifiedName());
-            default -> hasOptionalTypeName(symbol.getQualifiedName()) || isOptionalClass(symbol.getEnclosingElement());
+            case Symbol.MethodSymbol method -> maker.hasOptionalName(method.getReturnType().asElement().getQualifiedName());
+            case Symbol.VarSymbol variable -> maker.hasOptionalName((variable.asType().asElement().getQualifiedName()));
+            default -> maker.hasOptionalName(symbol.getQualifiedName()) || isOptionalClass(symbol.getEnclosingElement());
         };
-    }
-
-    private boolean hasOptionalTypeName(Name name){
-        return name.contentEquals(Optional.class.getName());
     }
 }

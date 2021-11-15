@@ -8,16 +8,10 @@ import com.sun.tools.javac.comp.Attr;
 import com.sun.tools.javac.comp.Operators;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.JCDiagnostic;
-import com.sun.tools.javac.util.List;
-import com.sun.tools.javac.util.Name;
-import com.sun.tools.javac.util.Names;
+import com.sun.tools.javac.util.*;
 import it.auties.optional.util.IllegalReflection;
-import it.auties.optional.util.FunctionalExpressionDesugarer;
 import it.auties.optional.util.OptionalManager;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.SneakyThrows;
+import lombok.*;
 import lombok.experimental.Accessors;
 import lombok.experimental.ExtensionMethod;
 
@@ -31,17 +25,16 @@ import static com.sun.tools.javac.code.TypeTag.BOT;
 import static com.sun.tools.javac.util.List.nil;
 import static com.sun.tools.javac.util.List.of;
 
-
 @AllArgsConstructor
 @Data
 @Accessors(fluent = true)
 @ExtensionMethod(IllegalReflection.class)
 public class Maker {
     private final TreeMaker trees;
-    private final Names names;
-    private final Symtab symtab;
-    private final Attr attr;
-    private final Types types;
+    protected final Names names;
+    protected final Symtab symtab;
+    protected final Attr attr;
+    protected final Types types;
     private final Operators operators;
     private OptionalManager manager;
     private Type streamType;
@@ -64,7 +57,7 @@ public class Maker {
         return trees.Type(type);
     }
 
-    public JCTree.JCStatement createNoSuchElementException(){
+    public JCTree.JCStatement createThrowNoSuchElementException(){
         if(noSuchElementSymbol == null){
             this.noSuchElementSymbol = findBaseModuleClassSymbol(NoSuchElementException.class);
         }
@@ -97,33 +90,32 @@ public class Maker {
     }
 
     public JCTree.JCVariableDecl createInferredParameter(Name name, Type type) {
-        var parameter = trees.Param(Objects.requireNonNullElse(name, names.fromString("inferred%s".formatted(manager.counter().getAndIncrement()))), unboxOptional(type), null);
-        parameter.sym.adr = 0;
-        return parameter;
+        var param = trees.Param(Objects.requireNonNullElse(name, uniqueName("inferred")), unboxOptional(type), null);
+        param.sym.adr = 0;
+        return param;
     }
 
     public JCTree.JCVariableDecl createParameterFromIdentifier(JCTree.JCIdent identifier) {
-        var parameter = trees.Param(identifier.getName(), identifier.type, null);
-        parameter.sym.adr = 0;
-        return parameter;
+        var param = trees.Param(identifier.getName(), identifier.type, null);
+        param.sym.adr = 0;
+        return param;
     }
 
-    public Type unboxOptional(Type returnType) {
-        if(returnType == null){
-            return null;
+    public Type unboxOptional(Type type) {
+        if(type == null || !hasOptionalName(type.asElement().getQualifiedName())){
+            return type;
         }
 
-        var head = returnType.getTypeArguments().head;
+        var head = type.getTypeArguments().head;
         if(head == null){
-            return types.erasure(returnType);
+            return types.erasure(type);
         }
 
-        var erased = types.erasure(head);
-        if(erased.asElement().getQualifiedName().startsWith(names.fromString(Optional.class.getName()))){
-            return unboxOptional(erased);
-        }
+        return unboxOptional(types.erasure(head));
+    }
 
-        return erased;
+    public boolean hasOptionalName(Name name) {
+        return name.startsWith(names.fromString(Optional.class.getName()));
     }
 
     public JCTree.JCLiteral createNullType() {
@@ -135,18 +127,6 @@ public class Maker {
         var baseModule = symtab.getModule(names.fromString("java.base"));
         var className = names.fromString(clazz.getName());
         return symtab.getClass(baseModule, className);
-    }
-
-    public JCTree.JCMethodDecl createMethod(Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, Type originalType, Type returnType, Name name, List<JCTree.JCVariableDecl> parameters, JCTree.JCBlock body, boolean box) {
-        eraseAndBoxParameters(parameters, box);
-        var methodName = names.fromString("%s%s".formatted(name, manager.counter().getAndIncrement()));
-        var methodType = new Type.MethodType(parameters.map(param -> param.type), eraseAndBox(returnType, box), nil(), enclosingClass);
-        if(originalType != null) methodType = new FunctionalExpressionDesugarer.FunctionalExpressionType(methodType, originalType);
-        var methodSymbol = new Symbol.MethodSymbol(Elements.createModifiers(enclosingMethod), methodName, methodType, enclosingClass);
-        methodSymbol.params = parameters.map(parameter -> parameter.sym);
-        var method = trees.MethodDef(methodSymbol, body);
-        parameters.forEach(param -> param.sym.owner = method.sym);
-        return manager.addLambda(method);
     }
 
     private void eraseAndBoxParameters(List<JCTree.JCVariableDecl> parameters, boolean box) {
@@ -188,6 +168,52 @@ public class Maker {
     }
 
     public Name uniqueName(String name) {
-        return names.fromString(name + "$" + manager.counter().getAndIncrement());
+        var counter = manager.counter().getAndIncrement();
+        return names.fromString(name + "$" + counter);
+    }
+
+    public Type boxed(Type type){
+        return types.boxedTypeOrType(type);
+    }
+
+    public MethodBuilder newMethod(){
+        return new MethodBuilder();
+    }
+
+    @NoArgsConstructor
+    @Data
+    @Accessors(fluent = true, chain = true)
+    public class MethodBuilder {
+        Symbol.ClassSymbol enclosingClass;
+        JCTree.JCMethodDecl modelMethod;
+        Type originalType;
+        Type returnType;
+        String name;
+        List<JCTree.JCVariableDecl> parameters;
+        JCTree.JCBlock body;
+
+        public JCTree.JCMethodDecl toTree() {
+            eraseAndBoxParameters(parameters, false);
+            var methodType = createMethodType();
+            var methodSymbol = createMethodSymbol(methodType);
+            methodSymbol.params = parameters.map(parameter -> parameter.sym);
+            var method = trees.at(modelMethod.pos()).MethodDef(methodSymbol, body);
+            parameters.forEach(param -> param.sym.owner = methodSymbol);
+            return manager.addLambda(method);
+        }
+
+        private Type.MethodType createMethodType() {
+            var methodType = new Type.MethodType(parameters.map(param -> param.type), eraseAndBox(returnType, false), nil(), symtab.methodClass);
+            if (originalType == null) {
+                return methodType;
+            }
+
+            return new FunctionalExpressionDesugarer.FunctionalExpressionType(methodType, originalType);
+        }
+
+        private Symbol.MethodSymbol createMethodSymbol(Type.MethodType methodType) {
+            var modifiers = Elements.createModifiers(modelMethod);
+            return new Symbol.MethodSymbol(modifiers, uniqueName(name), methodType, enclosingClass);
+        }
     }
 }

@@ -17,8 +17,7 @@ public class ConditionalTransformer extends FunctionalTransformer{
     }
 
     private JCTree.JCExpressionStatement orElse() {
-        return generatedInvocations.size() >= 2 ? maker.trees().Exec(generatedInvocations.get(1))
-                : null;
+        return generatedInvocations.size() < 2 ? null : maker.trees().Exec(generatedInvocations.get(1));
     }
 
     @Override
