@@ -1,15 +1,11 @@
 package it.auties.optional.tree;
 
-import com.sun.tools.javac.code.Symbol;
-import com.sun.tools.javac.code.Type;
-import com.sun.tools.javac.code.TypeTag;
+import com.sun.tools.javac.code.*;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import lombok.experimental.UtilityClass;
 
 import java.lang.reflect.Modifier;
-
-import static javax.lang.model.element.Modifier.STATIC;
 
 @UtilityClass
 public class Elements {
@@ -29,11 +25,30 @@ public class Elements {
 
     public boolean isVoid(Symbol symbol) {
         return symbol != null
-                && getSymbolReturnType(symbol).getTag() == TypeTag.VOID;
+                && getReturnType(symbol.asType()).getTag() == TypeTag.VOID;
     }
 
-    public Type getSymbolReturnType(Symbol symbol) {
-        return symbol.type instanceof Type.MethodType methodType
-                ? methodType.getReturnType() : symbol.type;
+    public Type getReturnType(Type type) {
+        return type instanceof Type.MethodType methodType
+                ? methodType.getReturnType() : type;
+    }
+
+    public Symbol.MethodSymbol getFunctionalInterfaceMethod(Symbol.TypeSymbol type){
+        return (Symbol.MethodSymbol) type.members()
+                .getSymbols(Elements::isFunctionalInterfaceMethod)
+                .iterator()
+                .next();
+    }
+
+    private boolean isFunctionalInterfaceMethod(Symbol symbol) {
+        return symbol.kind == Kinds.Kind.MTH
+                && noFlag(symbol, Flags.PRIVATE)
+                && noFlag(symbol, Flags.SYNTHETIC)
+                && noFlag(symbol, Flags.STATIC)
+                && noFlag(symbol, Flags.DEFAULT);
+    }
+
+    private boolean noFlag(Symbol symbol, long flag) {
+        return (symbol.flags() & flag) != flag;
     }
 }

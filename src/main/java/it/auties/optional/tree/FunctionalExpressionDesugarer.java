@@ -36,7 +36,7 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var lambda = (JCTree.JCLambda) node;
         var parameters = createParameters(lambda);
         var body = createBody(lambda);
-        var returnType = maker.unboxOptional(lambda.getDescriptorType(maker.types()).getReturnType());
+        var returnType = maker.unboxWrapper(lambda.getDescriptorType(maker.types()).getReturnType());
         var method = maker.newMethod()
                 .enclosingClass(enclosingClass)
                 .modelMethod(enclosingMethod)
@@ -54,7 +54,7 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var reference = (JCTree.JCMemberReference) node;
         var parameters = createParameters(reference);
         var body = createBody(reference, parameters);
-        var returnType = maker.unboxOptional(reference.getDescriptorType(maker.types()).getReturnType());
+        var returnType = maker.unboxWrapper(reference.getDescriptorType(maker.types()).getReturnType());
         var method = maker.newMethod()
                 .enclosingClass(enclosingClass)
                 .modelMethod(enclosingMethod)

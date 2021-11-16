@@ -38,7 +38,7 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
         this.generatedMethod = maker.newMethod()
                 .enclosingClass(enclosingClass)
                 .modelMethod(enclosingMethod)
-                .returnType(maker.boxed(maker.unboxOptional(callerExpression.type)))
+                .returnType(maker.boxed(maker.unboxWrapper(callerExpression.type)))
                 .name(instruction)
                 .parameters(parameters)
                 .toTree();
@@ -57,6 +57,15 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
         var explicitArguments = invocation.getArguments()
                 .stream()
                 .filter(argument -> !(TreeInfo.skipParens(argument) instanceof JCTree.JCFunctionalExpression))
+                .map(parameter -> {
+                    var type = Elements.getReturnType(parameter.type);
+                    if(maker.types().isFunctionalInterface(type)){
+                        var method = Elements.getFunctionalInterfaceMethod(type.asElement());
+                        return maker.trees().App(maker.trees().Select(parameter, method), of(callerExpression));
+                    }
+
+                    return parameter;
+                })
                 .collect(List.collector())
                 .prepend(callerExpression);
 

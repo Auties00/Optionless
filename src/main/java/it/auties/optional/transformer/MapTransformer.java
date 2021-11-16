@@ -3,6 +3,7 @@ package it.auties.optional.transformer;
 import com.sun.tools.javac.tree.JCTree;
 import it.auties.optional.tree.Maker;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class MapTransformer extends FunctionalTransformer {
@@ -13,8 +14,11 @@ public class MapTransformer extends FunctionalTransformer {
     @Override
     public JCTree.JCStatement body() {
         var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
-        var conditional = maker.trees().Conditional(checkCondition, maker.createNullType(), generatedInvocations.head);
-        return maker.trees().Return(conditional);
+        var mapper = Objects.requireNonNullElseGet(generatedInvocations.head, () -> createIdentifierForParameter(1));
+        var conditional = maker.trees().Conditional(checkCondition, maker.createNullType(), mapper)
+                .setType(mapper.type);
+        return maker.trees().Return(conditional)
+                .setType(mapper.type);
     }
 
     @Override

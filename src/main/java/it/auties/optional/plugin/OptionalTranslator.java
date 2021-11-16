@@ -65,7 +65,7 @@ public class OptionalTranslator extends TreeTranslator {
             return;
         }
 
-        tree.type = maker.unboxOptional(tree.type);
+        tree.type = maker.unboxWrapper(tree.type);
     }
 
     @Override
@@ -90,13 +90,13 @@ public class OptionalTranslator extends TreeTranslator {
     }
 
     private Type findOptionalVariableType(JCTree.JCVariableDecl variable){
-        var optionalType = maker.unboxOptional(variable.type);
+        var optionalType = maker.unboxWrapper(variable.type);
         if(optionalType != null){
             return types.removeWildcards(optionalType);
         }
 
         var initializer = Objects.requireNonNull(variable.getInitializer(), "findOptionalVariableType: null initializer");
-        return types.removeWildcards(maker.unboxOptional(initializer.type));
+        return types.removeWildcards(maker.unboxWrapper(initializer.type));
     }
 
     @Override
@@ -108,7 +108,7 @@ public class OptionalTranslator extends TreeTranslator {
             return;
         }
 
-        var optionalType = maker.unboxOptional(returnType);
+        var optionalType = maker.unboxWrapper(returnType);
         tree.restype = maker.createTypeExpression(optionalType);
         ((Type.MethodType) tree.type).restype = optionalType;
         ((Type.MethodType) tree.sym.type).restype = optionalType;

@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.sun.tools.javac.code.TypeTag.BOT;
@@ -90,7 +91,7 @@ public class Maker {
     }
 
     public JCTree.JCVariableDecl createInferredParameter(Name name, Type type) {
-        var param = trees.Param(Objects.requireNonNullElse(name, uniqueName("inferred")), unboxOptional(type), null);
+        var param = trees.Param(Objects.requireNonNullElse(name, uniqueName("inferred")), unboxWrapper(type), null);
         param.sym.adr = 0;
         return param;
     }
@@ -101,17 +102,35 @@ public class Maker {
         return param;
     }
 
-    public Type unboxOptional(Type type) {
-        if(type == null || !hasOptionalName(type.asElement().getQualifiedName())){
-            return type;
+    public Type unboxWrapper(Type type) {
+        if(type == null){
+            return null;
         }
 
-        var head = type.getTypeArguments().head;
-        if(head == null){
+        if(type.getTypeArguments().isEmpty()){
             return types.erasure(type);
         }
 
-        return unboxOptional(types.erasure(head));
+        if(types.isFunctionalInterface(type)){
+            return unboxFunctionalInterface(type); // No erasure or recursion needed
+        }
+
+        var erased = types.erasure(type.getTypeArguments().head);
+        if(hasOptionalName(erased.asElement().getQualifiedName())){
+            return unboxWrapper(erased); // Needs erasure and recursion
+        }
+
+        return erased;
+    }
+
+    private Type unboxFunctionalInterface(Type wrapperType) {
+        var functionalInterfaceType = wrapperType.asElement().asType();
+        var functionalInterfaceMethod = Elements.getFunctionalInterfaceMethod(wrapperType.asElement());
+        return IntStream.range(0, functionalInterfaceType.getTypeArguments().size())
+                .filter(index -> types.isSameType(functionalInterfaceMethod.getReturnType(), functionalInterfaceType.getTypeArguments().get(index)))
+                .mapToObj(wrapperType.getTypeArguments()::get)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot unbox functional interface %s".formatted(wrapperType)));
     }
 
     public boolean hasOptionalName(Name name) {
