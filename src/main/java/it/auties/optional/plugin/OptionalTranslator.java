@@ -147,11 +147,18 @@ public class OptionalTranslator extends TreeTranslator {
     }
 
     private boolean isOptionalClass(Symbol symbol){
-        return switch (symbol){
-            case null -> false;
-            case Symbol.MethodSymbol method -> maker.hasOptionalName(method.getReturnType().asElement().getQualifiedName());
-            case Symbol.VarSymbol variable -> maker.hasOptionalName((variable.asType().asElement().getQualifiedName()));
-            default -> maker.hasOptionalName(symbol.getQualifiedName()) || isOptionalClass(symbol.getEnclosingElement());
-        };
+        if(symbol == null){
+            return false;
+        }
+
+        if(symbol instanceof Symbol.MethodSymbol method){
+            return maker.hasOptionalName(method.getReturnType().asElement().getQualifiedName());
+        }
+
+        if(symbol instanceof Symbol.VarSymbol variable){
+            return maker.hasOptionalName((variable.asType().asElement().getQualifiedName()));
+        }
+
+        return maker.hasOptionalName(symbol.getQualifiedName()) || isOptionalClass(symbol.getEnclosingElement());
     }
 }

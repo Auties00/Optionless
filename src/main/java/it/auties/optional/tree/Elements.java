@@ -11,12 +11,14 @@ import java.lang.reflect.Modifier;
 public class Elements {
     public JCTree.JCExpression getCallerExpression(JCTree.JCMethodInvocation invocation){
         var skipped = TreeInfo.skipParens(invocation.getMethodSelect());
-        return switch (skipped){
-            case JCTree.JCFieldAccess fieldAccess -> fieldAccess.getExpression();
-            case JCTree.JCMemberReference memberReference -> memberReference.getQualifierExpression();
-            case null -> throw new IllegalArgumentException("Unexpected tree: null");
-            default -> throw new IllegalArgumentException("Unexpected tree: %s with type %s".formatted(skipped, skipped.getClass().getName()));
-        };
+        if(skipped instanceof JCTree.JCFieldAccess fieldAccess){
+            return fieldAccess.getExpression();
+        }
+        if(skipped instanceof JCTree.JCMemberReference memberReference) {
+            return memberReference.getQualifierExpression();
+        }
+
+        throw new IllegalArgumentException("Unexpected tree %s".formatted(skipped));
     }
 
     public long createModifiers(JCTree.JCMethodDecl enclosingMethod){

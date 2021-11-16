@@ -68,29 +68,30 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
     }
 
     private List<JCTree.JCVariableDecl> createParameters(JCTree.JCFunctionalExpression expression){
-        var parameters = switch (expression){
-            case JCTree.JCLambda lambda -> {
-                var paramsIterator = lambda.params.iterator();
-                yield lambda.getDescriptorType(maker.types())
-                        .getParameterTypes()
-                        .stream()
-                        .map(parameter -> createLambdaParameter(paramsIterator, parameter))
-                        .collect(Collectors.toList());
-            }
-
-            case JCTree.JCMemberReference reference -> {
-                var referenceParameters = ((Symbol.MethodSymbol) reference.sym).getParameters();
-                yield referenceParameters
-                        .stream()
-                        .map(parameter -> maker.createInferredParameter(parameter.type))
-                        .collect(Collectors.toList());
-            }
-
-            default -> throw new IllegalStateException("Cannot create parameters for unknown functional expression: " + expression);
-        };
-
+        var parameters = createMutableParameters(expression);
         completeWithScopedParameters(expression, parameters);
         return List.from(parameters);
+    }
+
+    private Collection<JCTree.JCVariableDecl> createMutableParameters(JCTree.JCFunctionalExpression expression) {
+        if(expression instanceof JCTree.JCLambda lambda) {
+            var paramsIterator = lambda.params.iterator();
+            return lambda.getDescriptorType(maker.types())
+                    .getParameterTypes()
+                    .stream()
+                    .map(parameter -> createLambdaParameter(paramsIterator, parameter))
+                    .collect(Collectors.toList());
+        }
+
+        if(expression instanceof  JCTree.JCMemberReference reference){
+            var referenceParameters = ((Symbol.MethodSymbol) reference.sym).getParameters();
+            return referenceParameters
+                    .stream()
+                    .map(parameter -> maker.createInferredParameter(parameter.type))
+                    .collect(Collectors.toList());
+        }
+
+        throw new IllegalStateException("Cannot create parameters for unknown functional expression: " + expression);
     }
 
     private void completeWithScopedParameters(JCTree.JCFunctionalExpression expression, Collection<JCTree.JCVariableDecl> parameters) {

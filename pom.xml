@@ -115,7 +115,6 @@
                         </path>
                     </annotationProcessorPaths>
                     <compilerArgs>
-                        <arg>--enable-preview</arg>
                         <arg>--add-exports</arg>
                         <arg>${open.tree.module.to.optional}</arg>
                         <arg>--add-exports</arg>
@@ -154,7 +153,6 @@
                 </executions>
                 <configuration>
                     <additionalOptions>
-                        <additionalOption>--enable-preview</additionalOption>
                         <additionalOption>--add-exports ${open.tree.module.to.optional}</additionalOption>
                         <additionalOption>--add-exports ${open.util.module.to.optional}</additionalOption>
                         <additionalOption>--add-exports ${open.code.module.to.optional}</additionalOption>
