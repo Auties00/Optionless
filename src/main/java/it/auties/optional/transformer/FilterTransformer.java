@@ -3,6 +3,7 @@ package it.auties.optional.transformer;
 import com.sun.tools.javac.tree.JCTree;
 import it.auties.optional.tree.Maker;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class FilterTransformer extends FunctionalTransformer{
@@ -12,10 +13,14 @@ public class FilterTransformer extends FunctionalTransformer{
 
     @Override
     public JCTree.JCStatement body() {
-        var value = createIdentifierForParameter(0);
-        var conditional = maker.trees().Conditional(generatedInvocations.head, value, maker.createNullType());
-        return maker.trees().Return(conditional.setType(value.type))
-                .setType(value.type);
+        var parameter = createIdentifierForParameter(0);
+        var filter = Objects.requireNonNullElseGet(generatedInvocations.head, () -> createIdentifierForParameter(1));
+        var conditional = maker.trees()
+                .Conditional(filter, parameter, maker.createNullType())
+                .setType(parameter.type);
+        return maker.trees()
+                .Return(conditional)
+                .setType(conditional.type);
     }
 
     @Override

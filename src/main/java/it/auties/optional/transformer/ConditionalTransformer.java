@@ -13,11 +13,25 @@ public class ConditionalTransformer extends FunctionalTransformer{
     @Override
     public JCTree.JCStatement body() {
         var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), true);
-        return maker.trees().If(checkCondition, maker.trees().Exec(generatedInvocations.head), orElse());
+        var ifPresent = creteInstruction(0);
+        var orElse = creteInstruction(1);
+        return maker.trees()
+                .If(checkCondition, execute(ifPresent), execute(orElse))
+                .setType(maker.symtab().voidType);
     }
 
-    private JCTree.JCExpressionStatement orElse() {
-        return generatedInvocations.size() < 2 ? null : maker.trees().Exec(generatedInvocations.get(1));
+    private JCTree.JCExpression creteInstruction(int index) {
+        if(index >= generatedInvocations.size()){
+            return createIdentifierForParameter(index + 1);
+        }
+
+        return generatedInvocations.get(index);
+    }
+
+    private JCTree.JCStatement execute(JCTree.JCExpression expression) {
+        return maker.trees()
+                .Exec(expression)
+                .setType(expression.type);
     }
 
     @Override

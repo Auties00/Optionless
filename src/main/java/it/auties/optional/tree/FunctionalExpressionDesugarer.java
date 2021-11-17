@@ -36,12 +36,11 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var lambda = (JCTree.JCLambda) node;
         var parameters = createParameters(lambda);
         var body = createBody(lambda);
-        var returnType = maker.unboxWrapper(lambda.getDescriptorType(maker.types()).getReturnType());
         var method = maker.newMethod()
                 .enclosingClass(enclosingClass)
                 .modelMethod(enclosingMethod)
                 .originalType(lambda.type)
-                .returnType(returnType)
+                .returnType(maker.unboxWrapper(lambda.type))
                 .name("lambda")
                 .parameters(parameters)
                 .body(body)
@@ -54,12 +53,11 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
         var reference = (JCTree.JCMemberReference) node;
         var parameters = createParameters(reference);
         var body = createBody(reference, parameters);
-        var returnType = maker.unboxWrapper(reference.getDescriptorType(maker.types()).getReturnType());
         var method = maker.newMethod()
                 .enclosingClass(enclosingClass)
                 .modelMethod(enclosingMethod)
                 .originalType(reference.type)
-                .returnType(returnType)
+                .returnType(maker.unboxWrapper(reference.type))
                 .name("reference")
                 .parameters(parameters)
                 .body(maker.trees().Block(0L, of(body)))
@@ -83,7 +81,7 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
                     .collect(Collectors.toList());
         }
 
-        if(expression instanceof  JCTree.JCMemberReference reference){
+        if(expression instanceof JCTree.JCMemberReference reference){
             var referenceParameters = ((Symbol.MethodSymbol) reference.sym).getParameters();
             return referenceParameters
                     .stream()
@@ -97,9 +95,14 @@ public class FunctionalExpressionDesugarer extends TreeScanner<JCTree.JCMethodDe
     private void completeWithScopedParameters(JCTree.JCFunctionalExpression expression, Collection<JCTree.JCVariableDecl> parameters) {
         new ContextualIdentityScanner().scan(expression, null)
                 .stream()
-                .filter(identifier -> parameters.stream().noneMatch(result -> Objects.equals(result.sym.asType(), identifier.type)))
+                .filter(identifier -> noMatchingParameter(parameters, identifier))
                 .map(maker::createParameterFromIdentifier)
                 .forEachOrdered(parameters::add);
+    }
+
+    private boolean noMatchingParameter(Collection<JCTree.JCVariableDecl> parameters, JCTree.JCIdent identifier) {
+        return parameters.stream()
+                .noneMatch(result -> Objects.equals(result.getName(), identifier.getName()) || maker.types().isSameType(result.sym.asType(), identifier.type));
     }
 
     private JCTree.JCVariableDecl createLambdaParameter(Iterator<JCTree.JCVariableDecl> paramsIterator, Type type) {

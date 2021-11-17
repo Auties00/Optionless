@@ -4,8 +4,11 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Types;
 import com.sun.tools.javac.tree.JCTree;
+import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeTranslator;
 import com.sun.tools.javac.util.List;
+import it.auties.optional.transformer.OptionalTransformer;
+import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
 import it.auties.optional.util.IllegalReflection;
 import it.auties.optional.util.OptionalManager;
@@ -16,6 +19,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static com.sun.tools.javac.tree.TreeInfo.symbolFor;
+import static com.sun.tools.javac.util.List.nil;
 
 @RequiredArgsConstructor
 @ExtensionMethod(IllegalReflection.class)
@@ -86,7 +90,7 @@ public class OptionalTranslator extends TreeTranslator {
 
         var optionalType = findOptionalVariableType(tree);
         tree.sym.type = optionalType;
-        tree.vartype = maker.createTypeExpression(optionalType);
+        tree.vartype = maker.typeExpression(optionalType);
     }
 
     private Type findOptionalVariableType(JCTree.JCVariableDecl variable){
@@ -109,7 +113,7 @@ public class OptionalTranslator extends TreeTranslator {
         }
 
         var optionalType = maker.unboxWrapper(returnType);
-        tree.restype = maker.createTypeExpression(optionalType);
+        tree.restype = maker.typeExpression(optionalType);
         ((Type.MethodType) tree.type).restype = optionalType;
         ((Type.MethodType) tree.sym.type).restype = optionalType;
     }
@@ -128,17 +132,54 @@ public class OptionalTranslator extends TreeTranslator {
             return;
         }
 
-        desugarOptionalInvocation(tree, selected);
+        var caller = Elements.getCallerExpression(tree);
+        this.result = desugarOptionalInvocation(caller, caller.type, selected, tree.getArguments());
     }
 
-    private void desugarOptionalInvocation(JCTree.JCMethodInvocation tree, Symbol selected) {
-        var invoked = selected.getSimpleName().toString();
-        this.result = manager.transformers()
+    @Override
+    public void visitReference(JCTree.JCMemberReference tree) {
+        super.visitReference(tree);
+        if (!isOwnedByOptional(tree.sym)) {
+            return;
+        }
+
+        var invocation = desugarOptionalInvocation(null, Elements.getReturnType(tree.referentType), tree.sym, nil());
+        var invocationSymbol = TreeInfo.symbolFor(invocation);
+        var reference = maker.reference(invocationSymbol, enclosingClass.sym);
+        var referenceType = (Type.ClassType) tree.type;
+        referenceType.typarams_field = translateReferenceType(invocation, referenceType);
+        reference.type = referenceType;
+        reference.target = referenceType;
+        reference.referentType = invocation.type;
+        reference.sym = invocationSymbol;
+        reference.ownerAccessible = true;
+        this.result = reference;
+    }
+
+    private List<Type> translateReferenceType(JCTree.JCExpression invocation, Type.ClassType referenceType) {
+        return referenceType.typarams_field.stream()
+                .map(type -> maker.hasOptionalName(type.asElement().getQualifiedName()) ? maker.boxed(Elements.getReturnType(invocation.type)) : type)
+                .collect(List.collector());
+    }
+
+    private JCTree.JCExpression desugarOptionalInvocation(JCTree.JCExpression caller, Type callerType, Symbol selected, List<JCTree.JCExpression> arguments) {
+        var selectedName = selected.getSimpleName().toString();
+        return manager.transformers()
                 .stream()
-                .filter(transformer -> transformer.supportedInstructions().contains(invoked))
+                .filter(transformer -> transformer.supportedInstructions().contains(selectedName))
                 .findFirst()
-                .map(transformer -> transformer.transformTree(invoked, enclosingClass.sym, enclosingMethod, tree))
-                .orElseThrow(() -> new UnsupportedOperationException("No transformer could transform %s".formatted(invoked)));
+                .map(transformer -> transformTree(transformer, caller, callerType, selectedName, arguments))
+                .orElseThrow(() -> new UnsupportedOperationException("No transformer could transform %s".formatted(selectedName)));
+    }
+
+    private JCTree.JCExpression transformTree(OptionalTransformer transformer, JCTree.JCExpression caller, Type callerType, String selectedName, List<JCTree.JCExpression> arguments) {
+        return transformer.instruction(selectedName)
+                .enclosingClass(enclosingClass.sym)
+                .enclosingMethod(enclosingMethod)
+                .invocationCaller(caller)
+                .invocationCallerType(callerType)
+                .invocationArguments(arguments)
+                .transform();
     }
 
     private boolean isOwnedByOptional(Symbol selected) {

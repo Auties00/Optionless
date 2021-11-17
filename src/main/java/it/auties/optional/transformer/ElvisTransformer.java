@@ -1,6 +1,7 @@
 package it.auties.optional.transformer;
 
 import com.sun.tools.javac.tree.JCTree;
+import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
 
 import java.util.Objects;
@@ -13,11 +14,14 @@ public class ElvisTransformer extends FunctionalTransformer{
 
     @Override
     public JCTree.JCStatement body() {
-        var valueSymbol = createIdentifierForParameter(0);
-        var checkCondition = maker.createNullCheck(valueSymbol, false);
-        var conditional = maker.trees().Conditional(checkCondition, Objects.requireNonNullElse(generatedInvocations.head, createIdentifierForParameter(1)), valueSymbol);
-        return maker.trees().Return(conditional.setType(valueSymbol.type))
-                .setType(valueSymbol.type);
+        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
+        var elvis = Objects.requireNonNullElse(generatedInvocations.head, createIdentifierForParameter(1));
+        var conditional = maker.trees()
+                .Conditional(checkCondition, elvis, createIdentifierForParameter(0))
+                .setType(Elements.getReturnType(elvis.type));
+        return maker.trees()
+                .Return(conditional)
+                .setType(conditional.type);
     }
 
     @Override

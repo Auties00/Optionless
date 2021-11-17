@@ -1,8 +1,10 @@
 package it.auties.optional.transformer;
 
 import com.sun.tools.javac.tree.JCTree;
+import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
 
+import java.util.Objects;
 import java.util.Set;
 
 public class OrTransformer extends FunctionalTransformer {
@@ -12,11 +14,14 @@ public class OrTransformer extends FunctionalTransformer {
 
     @Override
     public JCTree.JCStatement body() {
-        var value = createIdentifierForParameter(0);
-        var checkCondition = maker.createNullCheck(value, false);
-        var conditional = maker.trees().Conditional(checkCondition, generatedInvocations.head, maker.createNullType());
-        return maker.trees().Return(conditional.setType(value.type))
-                .setType(value.type);
+        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
+        var otherwise = Objects.requireNonNullElseGet(generatedInvocations.head, () -> createIdentifierForParameter(1));
+        var conditional = maker.trees()
+                .Conditional(checkCondition, otherwise, maker.createNullType())
+                .setType(Elements.getReturnType(otherwise.type));
+        return maker.trees()
+                .Return(conditional)
+                .setType(conditional.type);
     }
 
     @Override

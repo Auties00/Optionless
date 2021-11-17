@@ -1,7 +1,6 @@
 package it.auties.optional.transformer;
 
 import com.sun.tools.javac.tree.JCTree;
-import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
 
 import java.util.Objects;
@@ -13,9 +12,10 @@ public class ValueTransformer extends OptionalTransformer{
     }
 
     @Override
-    public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation) {
-        var target = Elements.getCallerExpression(invocation);
-        return maker.createNullCheck(target, Objects.equals(instruction, "isPresent"));
+    public JCTree.JCExpression transform() {
+        var nonNull = Objects.equals(instruction, "isPresent");
+        return isMemberReferenceScoped() ? maker.createDummyNullCheck(nonNull)
+                : maker.createNullCheck(invocationCaller, nonNull);
     }
 
     @Override

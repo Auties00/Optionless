@@ -14,6 +14,7 @@ public class Elements {
         if(skipped instanceof JCTree.JCFieldAccess fieldAccess){
             return fieldAccess.getExpression();
         }
+
         if(skipped instanceof JCTree.JCMemberReference memberReference) {
             return memberReference.getQualifierExpression();
         }

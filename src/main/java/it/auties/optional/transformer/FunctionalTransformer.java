@@ -1,6 +1,6 @@
 package it.auties.optional.transformer;
 
-import com.sun.tools.javac.code.Symbol;
+import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.util.List;
@@ -10,13 +10,10 @@ import it.auties.optional.tree.Maker;
 
 import java.util.stream.Stream;
 
+import static com.sun.tools.javac.util.List.nil;
 import static com.sun.tools.javac.util.List.of;
 
 public abstract class FunctionalTransformer extends OptionalTransformer{
-    protected String instruction;
-    protected Symbol.ClassSymbol enclosingClass;
-    protected JCTree.JCMethodDecl enclosingMethod;
-    protected JCTree.JCMethodInvocation invocation;
     protected JCTree.JCMethodDecl generatedMethod;
     protected List<JCTree.JCMethodDecl> generatedLambdas;
     protected List<JCTree.JCMethodInvocation> generatedInvocations;
@@ -25,58 +22,64 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
     }
 
     @Override
-    public JCTree transformTree(String instruction, Symbol.ClassSymbol enclosingClass, JCTree.JCMethodDecl enclosingMethod, JCTree.JCMethodInvocation invocation) {
-        this.instruction = instruction;
-        this.enclosingClass = enclosingClass;
-        this.enclosingMethod = enclosingMethod;
-        this.invocation = invocation;
-
+    public JCTree.JCExpression transform() {
         this.generatedLambdas = generateFunctionalExpressions();
-        var callerExpression = Elements.getCallerExpression(invocation);
-        var parameters = createRootParameters(callerExpression);
-
-        this.generatedMethod = maker.newMethod()
-                .enclosingClass(enclosingClass)
-                .modelMethod(enclosingMethod)
-                .returnType(maker.boxed(maker.unboxWrapper(callerExpression.type)))
-                .name(instruction)
-                .parameters(parameters)
-                .toTree();
+        this.generatedMethod = generateMethod();
         this.generatedInvocations = generateFunctionalCalls();
         generatedMethod.body = createBody();
-        return maker.createCallOnIdentifier(generatedMethod, createRootArguments(callerExpression));
+        attributeGeneratedMethodType();
+        return maker.createCallOnIdentifier(generatedMethod, createRootArguments());
+    }
+
+    private JCTree.JCMethodDecl generateMethod() {
+        return maker.newMethod()
+                .enclosingClass(enclosingClass)
+                .modelMethod(enclosingMethod)
+                .name(instruction)
+                .parameters(createRootParameters())
+                .toTree();
+    }
+
+    private void attributeGeneratedMethodType() {
+        var methodType = (Type.MethodType) generatedMethod.type;
+        var type = maker.eraseAndBox(generatedMethod.getBody().type, false);
+        methodType.restype = type;
+        generatedMethod.restype = maker.typeExpression(type);
     }
 
     private JCTree.JCBlock createBody() {
-        return maker.trees()
+        var body = body();
+        return (JCTree.JCBlock) maker.trees()
                 .at(generatedMethod.pos())
-                .Block(0L, of(body()));
+                .Block(0L, of(body))
+                .setType(body.type);
     }
 
-    private List<JCTree.JCExpression> createRootArguments(JCTree.JCExpression callerExpression) {
-        var explicitArguments = invocation.getArguments()
-                .stream()
+    private List<JCTree.JCExpression> createRootArguments() {
+        var explicitArguments = invocationArguments.stream()
                 .filter(argument -> !(TreeInfo.skipParens(argument) instanceof JCTree.JCFunctionalExpression))
-                .map(parameter -> {
-                    var type = Elements.getReturnType(parameter.type);
-                    if(maker.types().isFunctionalInterface(type)){
-                        var method = Elements.getFunctionalInterfaceMethod(type.asElement());
-                        return maker.trees().App(maker.trees().Select(parameter, method), of(callerExpression));
-                    }
-
-                    return parameter;
-                })
-                .collect(List.collector())
-                .prepend(callerExpression);
+                .map(this::createRootArgument)
+                .collect(List.collector());
 
         var deducedArguments = generatedMethod.getParameters()
                 .stream()
                 .skip(1)
-                .limit(generatedMethod.getParameters().size() - explicitArguments.size())
+                .limit(generatedMethod.getParameters().size() - 1 - explicitArguments.size())
                 .map(parameter -> maker.identifier(parameter.sym))
                 .collect(List.<JCTree.JCExpression>collector());
 
-        return explicitArguments.appendList(deducedArguments);
+        return isMemberReferenceScoped() ? explicitArguments.appendList(deducedArguments)
+                : explicitArguments.prepend(invocationCaller).appendList(deducedArguments);
+    }
+
+    private JCTree.JCExpression createRootArgument(JCTree.JCExpression parameter) {
+        var type = Elements.getReturnType(parameter.type);
+        if (!maker.types().isFunctionalInterface(type)) {
+            return parameter;
+        }
+
+        var method = Elements.getFunctionalInterfaceMethod(type.asElement());
+        return maker.trees().App(maker.trees().Select(parameter, method), isMemberReferenceScoped() ? nil() : of(invocationCaller));
     }
 
     private List<JCTree.JCMethodInvocation> generateFunctionalCalls() {
@@ -91,31 +94,30 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
     }
 
     private List<JCTree.JCMethodDecl> generateFunctionalExpressions() {
-        return invocation.getArguments()
-                .stream()
+        return invocationArguments.stream()
                 .map(TreeInfo::skipParens)
                 .filter(argument -> argument instanceof JCTree.JCFunctionalExpression)
                 .map(argument -> maker.createMethodFromLambda(enclosingClass, enclosingMethod, argument))
                 .collect(List.collector());
     }
 
-    private List<JCTree.JCVariableDecl> createRootParameters(JCTree.JCExpression caller){
-        return generatedLambdas.isEmpty() ? createRootParametersFromInvocation(caller)
-                : createRootParametersFromLambdas(caller);
+    private List<JCTree.JCVariableDecl> createRootParameters(){
+        return generatedLambdas.isEmpty() ? createRootParametersFromInvocation()
+                : createRootParametersFromLambdas();
     }
 
-    private List<JCTree.JCVariableDecl> createRootParametersFromInvocation(JCTree.JCExpression caller) {
-        return invocation.getArguments().stream()
+    private List<JCTree.JCVariableDecl> createRootParametersFromInvocation() {
+        return invocationArguments.stream()
                 .map(expression -> maker.createInferredParameter(expression.type))
                 .collect(List.collector())
-                .prepend(maker.createInferredParameter(maker.boxed(caller.type)));
+                .prepend(maker.createInferredParameter(maker.boxed(invocationCallerType)));
     }
 
-    private List<JCTree.JCVariableDecl> createRootParametersFromLambdas(JCTree.JCExpression caller) {
+    private List<JCTree.JCVariableDecl> createRootParametersFromLambdas() {
         return generatedLambdas.stream()
                 .flatMap(this::removeErasedTypeArguments)
                 .collect(List.collector())
-                .prepend(maker.createInferredParameter(maker.boxed(caller.type)));
+                .prepend(maker.createInferredParameter(maker.boxed(invocationCallerType)));
     }
 
     private Stream<JCTree.JCVariableDecl> removeErasedTypeArguments(JCTree.JCMethodDecl lambda) {
@@ -126,6 +128,10 @@ public abstract class FunctionalTransformer extends OptionalTransformer{
     }
 
     protected JCTree.JCIdent createIdentifierForParameter(int index){
+        if(index >= generatedMethod.getParameters().size()){
+            return null;
+        }
+
         var symbol = generatedMethod.getParameters().get(index).sym;
         return maker.identifier(symbol);
     }

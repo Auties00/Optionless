@@ -1,7 +1,6 @@
 package it.auties.optional.transformer;
 
 import com.sun.tools.javac.tree.JCTree;
-import it.auties.optional.tree.Elements;
 import it.auties.optional.tree.Maker;
 
 import java.util.Set;
@@ -12,8 +11,8 @@ public class StreamTransformer extends OptionalTransformer{
     }
 
     @Override
-    public JCTree transformTree(String instruction, JCTree.JCMethodInvocation invocation) {
-        return maker.makeStream(Elements.getCallerExpression(invocation));
+    public JCTree.JCExpression transform() {
+        return maker.makeStream(invocationCaller);
     }
 
     @Override

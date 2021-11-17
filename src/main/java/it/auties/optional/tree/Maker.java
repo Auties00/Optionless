@@ -1,5 +1,6 @@
 package it.auties.optional.tree;
 
+import com.sun.source.tree.MemberReferenceTree;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
@@ -8,17 +9,22 @@ import com.sun.tools.javac.comp.Attr;
 import com.sun.tools.javac.comp.Operators;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
-import com.sun.tools.javac.util.*;
+import com.sun.tools.javac.util.JCDiagnostic;
+import com.sun.tools.javac.util.List;
+import com.sun.tools.javac.util.Name;
+import com.sun.tools.javac.util.Names;
 import it.auties.optional.util.IllegalReflection;
 import it.auties.optional.util.OptionalManager;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.SneakyThrows;
 import lombok.experimental.Accessors;
 import lombok.experimental.ExtensionMethod;
 
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -37,16 +43,23 @@ public class Maker {
     protected final Attr attr;
     protected final Types types;
     private final Operators operators;
-    private OptionalManager manager;
     private Type streamType;
     private Symbol.ClassSymbol noSuchElementSymbol;
 
     public Maker(TreeMaker trees, Names names, Symtab symtab, Attr attr, Types types, Operators operators) {
-        this(trees, names, symtab, attr, types, operators, OptionalManager.instance(), null, null);
+        this(trees, names, symtab, attr, types, operators, null, null);
+    }
+
+    public JCTree.JCExpression thisIdentifier(Type type){
+        return trees.This(type);
     }
 
     public JCTree.JCIdent identifier(Symbol symbol){
         return trees.Ident(symbol);
+    }
+
+    public JCTree.JCExpression typeExpression(Type type){
+        return trees.Type(type);
     }
 
     public JCTree.JCMethodInvocation createCallOnIdentifier(JCTree.JCMethodDecl method, List<JCTree.JCExpression> parameters) {
@@ -54,36 +67,27 @@ public class Maker {
         return trees.App(identifier, parameters);
     }
 
-    public JCTree.JCExpression createTypeExpression(Type type){
-        return trees.Type(type);
-    }
-
     public JCTree.JCStatement createThrowNoSuchElementException(){
         if(noSuchElementSymbol == null){
             this.noSuchElementSymbol = findBaseModuleClassSymbol(NoSuchElementException.class);
         }
 
-        var ctor = noSuchElementSymbol.members().findFirst(names.init);
-        return trees.Throw(trees.Create(ctor, of(trees.Literal("No value present"))))
+        var constructor = noSuchElementSymbol.members().findFirst(names.init);
+        var instance = (JCTree.JCNewClass) trees.Create(constructor, of(trees.Literal("No value present")));
+        instance.constructorType = noSuchElementSymbol.asType();
+        return trees.Throw(instance)
                 .setType(noSuchElementSymbol.asType());
     }
 
-    public JCTree.JCExpression makeStream(JCTree.JCExpression argument){
+    public JCTree.JCMethodInvocation makeStream(JCTree.JCExpression argument){
         if(streamType == null){
             this.streamType = findBaseModuleClassSymbol(Stream.class).asType();
         }
 
         var members = Objects.requireNonNull(streamType.asElement().members(), "The stream class has no members");
-        var methodSymbol = members.findFirst(names.fromString("ofNullable"), matchSymbol(argument));
-        var selected = trees.Select(createTypeExpression(streamType), methodSymbol);
-        return trees.App(selected, of(argument));
-    }
-
-    private Predicate<Symbol> matchSymbol(JCTree.JCExpression expression) {
-        return symbol -> symbol.asType()
-                .getParameterTypes()
-                .stream()
-                .allMatch(parameterType -> types.isAssignable(types.erasure(expression.type), types.erasure(parameterType)));
+        var methodSymbol = members.findFirst(names.fromString("ofNullable"));
+        var selected = trees.Select(typeExpression(streamType), methodSymbol);
+        return trees.App(selected, argument == null ? nil() : of(argument));
     }
 
     public JCTree.JCVariableDecl createInferredParameter(Type type) {
@@ -112,12 +116,12 @@ public class Maker {
         }
 
         if(types.isFunctionalInterface(type)){
-            return unboxFunctionalInterface(type); // No erasure or recursion needed
+            return unboxWrapper(unboxFunctionalInterface(type));
         }
 
         var erased = types.erasure(type.getTypeArguments().head);
         if(hasOptionalName(erased.asElement().getQualifiedName())){
-            return unboxWrapper(erased); // Needs erasure and recursion
+            return unboxWrapper(erased);
         }
 
         return erased;
@@ -125,12 +129,12 @@ public class Maker {
 
     private Type unboxFunctionalInterface(Type wrapperType) {
         var functionalInterfaceType = wrapperType.asElement().asType();
-        var functionalInterfaceMethod = Elements.getFunctionalInterfaceMethod(wrapperType.asElement());
+        var functionalInterfaceMethod = Elements.getFunctionalInterfaceMethod(wrapperType.asElement()).getReturnType();
         return IntStream.range(0, functionalInterfaceType.getTypeArguments().size())
-                .filter(index -> types.isSameType(functionalInterfaceMethod.getReturnType(), functionalInterfaceType.getTypeArguments().get(index)))
+                .filter(index -> types.isSameType(functionalInterfaceMethod, functionalInterfaceType.getTypeArguments().get(index)))
                 .mapToObj(wrapperType.getTypeArguments()::get)
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Cannot unbox functional interface %s".formatted(wrapperType)));
+                .orElse(functionalInterfaceMethod);
     }
 
     public boolean hasOptionalName(Name name) {
@@ -155,8 +159,10 @@ public class Maker {
         });
     }
 
-    private Type eraseAndBox(Type type, boolean box) {
-        return box ? types.boxedTypeOrType(types.erasure(type)) : types.erasure(type);
+    public Type eraseAndBox(Type type, boolean box) {
+        return Optional.ofNullable(type)
+                .map(safeType -> box ? types.boxedTypeOrType(types.erasure(safeType)) : types.erasure(safeType))
+                .orElse(null);
     }
 
     public JCTree.JCExpression createNullAssert(JCTree.JCExpression left){
@@ -173,6 +179,14 @@ public class Maker {
         return binary;
     }
 
+    public JCTree.JCExpression createDummyNullCheck(boolean nonNull){
+        var checkMethod = symtab.objectsType
+                .asElement()
+                .members()
+                .findFirst(names.fromString(nonNull ? "nonNull" : "isNull"));
+        return trees.App(trees.Select(trees.Type(symtab.objectsType), checkMethod), nil());
+    }
+
     @SneakyThrows
     private Symbol.OperatorSymbol resolveBinary(JCTree.JCExpression left, JCTree.JCExpression right, JCTree.Tag tag) {
         return (Symbol.OperatorSymbol) operators.getClass()
@@ -187,12 +201,25 @@ public class Maker {
     }
 
     public Name uniqueName(String name) {
-        var counter = manager.counter().getAndIncrement();
+        var counter = OptionalManager.instance().counter().getAndIncrement();
         return names.fromString(name + "$" + counter);
     }
 
     public Type boxed(Type type){
         return types.boxedTypeOrType(type);
+    }
+
+    public JCTree.JCMemberReference reference(Symbol selected, Symbol.ClassSymbol enclosingClass){
+        var thisScope = selected.getEnclosingElement().equals(enclosingClass);
+        var caller = referenceCaller(selected, thisScope);
+        var reference = trees.Reference(MemberReferenceTree.ReferenceMode.INVOKE, selected.getSimpleName(), caller, null);
+        reference.kind = thisScope ? JCTree.JCMemberReference.ReferenceKind.BOUND : JCTree.JCMemberReference.ReferenceKind.UNBOUND;
+        return reference;
+    }
+
+    private JCTree.JCExpression referenceCaller(Symbol selected, boolean thisScope) {
+        return thisScope ? thisIdentifier(selected.getEnclosingElement().asType())
+                : typeExpression(selected.getEnclosingElement().asType());
     }
 
     public MethodBuilder newMethod(){
@@ -218,7 +245,7 @@ public class Maker {
             methodSymbol.params = parameters.map(parameter -> parameter.sym);
             var method = trees.at(modelMethod.pos()).MethodDef(methodSymbol, body);
             parameters.forEach(param -> param.sym.owner = methodSymbol);
-            return manager.addLambda(method);
+            return OptionalManager.instance().addLambda(method);
         }
 
         private Type.MethodType createMethodType() {
