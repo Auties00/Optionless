@@ -14,11 +14,11 @@ public class ElvisTransformer extends FunctionalTransformer{
 
     @Override
     public JCTree.JCStatement body() {
-        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
+        var parameter = createIdentifierForParameter(0);
         var elvis = Objects.requireNonNullElse(generatedInvocations.head, createIdentifierForParameter(1));
         var conditional = maker.trees()
-                .Conditional(checkCondition, elvis, createIdentifierForParameter(0))
-                .setType(Elements.getReturnType(elvis.type));
+                .Conditional(maker.createNullCheck(parameter, false), elvis, parameter)
+                .setType(Elements.getReturnType(parameter.type));
         return maker.trees()
                 .Return(conditional)
                 .setType(conditional.type);
