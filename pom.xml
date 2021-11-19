@@ -4,9 +4,9 @@
 
     <groupId>com.github.auties00</groupId>
     <artifactId>optional</artifactId>
-    <version>1.1-SNAPSHOT</version>
+    <version>1.0-SNAPSHOT</version>
     <name>${project.groupId}:${project.artifactId}</name>
-    <description>Optional at no cost</description>
+    <description>Desugar optional calls for a null safe type system with no performance hits</description>
     <url>https://github.com/Auties00/optional</url>
     <developers>
         <developer>
@@ -75,17 +75,18 @@
         <deploy.plugin.version>2.8.2</deploy.plugin.version>
         <staging.plugin.version>1.6.7</staging.plugin.version>
         <gpg.plugin.version>3.0.1</gpg.plugin.version>
+        <javac.package>jdk.compiler/com.sun.tools.javac</javac.package>
         <optional.module>it.auties.optional</optional.module>
-        <open.tree.module.to.optional>jdk.compiler/com.sun.tools.javac.tree=${optional.module}</open.tree.module.to.optional>
-        <open.util.module.to.optional>jdk.compiler/com.sun.tools.javac.util=${optional.module}</open.util.module.to.optional>
-        <open.code.module.to.optional>jdk.compiler/com.sun.tools.javac.code=${optional.module}</open.code.module.to.optional>
-        <open.api.module.to.optional>jdk.compiler/com.sun.tools.javac.api=${optional.module}</open.api.module.to.optional>
-        <open.comp.module.to.optional>jdk.compiler/com.sun.tools.javac.comp=${optional.module}</open.comp.module.to.optional>
-        <open.jvm.module.to.optional>jdk.compiler/com.sun.tools.javac.jvm=${optional.module}</open.jvm.module.to.optional>
-        <open.model.module.to.optional>jdk.compiler/com.sun.tools.javac.model=${optional.module}</open.model.module.to.optional>
-        <open.processing.module.to.optional>jdk.compiler/com.sun.tools.javac.processing=${optional.module}</open.processing.module.to.optional>
-        <open.resources.module.to.optional>jdk.compiler/com.sun.tools.javac.resources=${optional.module}</open.resources.module.to.optional>
-        <open.main.module.to.optional>jdk.compiler/com.sun.tools.javac.main=${optional.module}</open.main.module.to.optional>
+        <open.tree>${javac.package}.tree=${optional.module}</open.tree>
+        <open.util>${javac.package}.util=${optional.module}</open.util>
+        <open.code>${javac.package}.code=${optional.module}</open.code>
+        <open.api>${javac.package}.api=${optional.module}</open.api>
+        <open.comp>${javac.package}.comp=${optional.module}</open.comp>
+        <open.jvm>${javac.package}.jvm=${optional.module}</open.jvm>
+        <open.model>${javac.package}.model=${optional.module}</open.model>
+        <open.processing>${javac.package}.processing=${optional.module}</open.processing>
+        <open.resources>${javac.package}.resources=${optional.module}</open.resources>
+        <open.main>${javac.package}.main=${optional.module}</open.main>
     </properties>
 
     <dependencies>
@@ -116,25 +117,25 @@
                     </annotationProcessorPaths>
                     <compilerArgs>
                         <arg>--add-exports</arg>
-                        <arg>${open.tree.module.to.optional}</arg>
+                        <arg>${open.tree}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.util.module.to.optional}</arg>
+                        <arg>${open.util}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.code.module.to.optional}</arg>
+                        <arg>${open.code}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.api.module.to.optional}</arg>
+                        <arg>${open.api}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.comp.module.to.optional}</arg>
+                        <arg>${open.comp}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.jvm.module.to.optional}</arg>
+                        <arg>${open.jvm}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.processing.module.to.optional}</arg>
+                        <arg>${open.processing}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.model.module.to.optional}</arg>
+                        <arg>${open.model}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.resources.module.to.optional}</arg>
+                        <arg>${open.resources}</arg>
                         <arg>--add-exports</arg>
-                        <arg>${open.main.module.to.optional}</arg>
+                        <arg>${open.main}</arg>
                     </compilerArgs>
                     <fork>true</fork>
                 </configuration>
@@ -153,16 +154,16 @@
                 </executions>
                 <configuration>
                     <additionalOptions>
-                        <additionalOption>--add-exports ${open.tree.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.util.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.code.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.api.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.comp.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.jvm.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.processing.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.model.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.resources.module.to.optional}</additionalOption>
-                        <additionalOption>--add-exports ${open.main.module.to.optional}</additionalOption>
+                        <additionalOption>--add-exports ${open.tree}</additionalOption>
+                        <additionalOption>--add-exports ${open.util}</additionalOption>
+                        <additionalOption>--add-exports ${open.code}</additionalOption>
+                        <additionalOption>--add-exports ${open.api}</additionalOption>
+                        <additionalOption>--add-exports ${open.comp}</additionalOption>
+                        <additionalOption>--add-exports ${open.jvm}</additionalOption>
+                        <additionalOption>--add-exports ${open.processing}</additionalOption>
+                        <additionalOption>--add-exports ${open.model}</additionalOption>
+                        <additionalOption>--add-exports ${open.resources}</additionalOption>
+                        <additionalOption>--add-exports ${open.main}</additionalOption>
                     </additionalOptions>
                     <source>17</source>
                     <failOnError>true</failOnError>
