@@ -1,0 +1,102 @@
+"C:\Program Files\Java\jdk-17\bin\java.exe" --enable-preview -javaagent:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\lib\idea_rt.jar=53976:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\bin -Dfile.encoding=UTF-8 -classpath C:\Users\alaut\FastOptionalTest\target\classes;C:\Users\alaut\.m2\repository\com\github\auties00\optional\1.1-SNAPSHOT\optional-1.1-SNAPSHOT.jar;C:\Users\alaut\.m2\repository\org\projectlombok\lombok\1.18.22\lombok-1.18.22.jar;C:\Users\alaut\.m2\repository\org\openjdk\jmh\jmh-core\1.33\jmh-core-1.33.jar;C:\Users\alaut\.m2\repository\net\sf\jopt-simple\jopt-simple\4.6\jopt-simple-4.6.jar;C:\Users\alaut\.m2\repository\org\apache\commons\commons-math3\3.2\commons-math3-3.2.jar;C:\Users\alaut\.m2\repository\org\openjdk\jmh\jmh-generator-annprocess\1.33\jmh-generator-annprocess-1.33.jar org.openjdk.jmh.Main "it.auties.main.OptionBenchmark.*"
+# JMH version: 1.33
+# VM version: JDK 17, OpenJDK 64-Bit Server VM, 17+35-2724
+# VM invoker: C:\Program Files\Java\jdk-17\bin\java.exe
+# VM options: --enable-preview -javaagent:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\lib\idea_rt.jar=53976:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\bin -Dfile.encoding=UTF-8
+# Blackhole mode: full + dont-inline hint (default, use -Djmh.blackhole.autoDetect=true to auto-detect)
+# Warmup: 2 iterations, 10 s each
+# Measurement: 5 iterations, 10 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: it.auties.main.OptionBenchmark.sumNulls
+
+# Run progress: 0,00% complete, ETA 00:03:30
+# Fork: 1 of 1
+# Warmup Iteration   1: 771,352 us/op
+# Warmup Iteration   2: 777,127 us/op
+Iteration   1: 774,212 us/op
+Iteration   2: 773,679 us/op
+Iteration   3: 775,757 us/op
+Iteration   4: 770,571 us/op
+Iteration   5: 769,934 us/op
+
+
+Result "it.auties.main.OptionBenchmark.sumNulls":
+  772,831 ±(99.9%) 9,565 us/op [Average]
+  (min, avg, max) = (769,934, 772,831, 775,757), stdev = 2,484
+  CI (99.9%): [763,265, 782,396] (assumes normal distribution)
+
+
+# JMH version: 1.33
+# VM version: JDK 17, OpenJDK 64-Bit Server VM, 17+35-2724
+# VM invoker: C:\Program Files\Java\jdk-17\bin\java.exe
+# VM options: --enable-preview -javaagent:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\lib\idea_rt.jar=53976:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\bin -Dfile.encoding=UTF-8
+# Blackhole mode: full + dont-inline hint (default, use -Djmh.blackhole.autoDetect=true to auto-detect)
+# Warmup: 2 iterations, 10 s each
+# Measurement: 5 iterations, 10 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: it.auties.main.OptionBenchmark.sumOptional
+
+# Run progress: 33,33% complete, ETA 00:02:21
+# Fork: 1 of 1
+# Warmup Iteration   1: 367,377 us/op
+# Warmup Iteration   2: 365,026 us/op
+Iteration   1: 371,626 us/op
+Iteration   2: 376,107 us/op
+Iteration   3: 375,002 us/op
+Iteration   4: 372,020 us/op
+Iteration   5: 371,851 us/op
+
+
+Result "it.auties.main.OptionBenchmark.sumOptional":
+  373,321 ±(99.9%) 8,012 us/op [Average]
+  (min, avg, max) = (371,626, 373,321, 376,107), stdev = 2,081
+  CI (99.9%): [365,309, 381,333] (assumes normal distribution)
+
+
+# JMH version: 1.33
+# VM version: JDK 17, OpenJDK 64-Bit Server VM, 17+35-2724
+# VM invoker: C:\Program Files\Java\jdk-17\bin\java.exe
+# VM options: --enable-preview -javaagent:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\lib\idea_rt.jar=53976:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\bin -Dfile.encoding=UTF-8
+# Blackhole mode: full + dont-inline hint (default, use -Djmh.blackhole.autoDetect=true to auto-detect)
+# Warmup: 2 iterations, 10 s each
+# Measurement: 5 iterations, 10 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: it.auties.main.OptionBenchmark.sumSimple
+
+# Run progress: 66,67% complete, ETA 00:01:10
+# Fork: 1 of 1
+# Warmup Iteration   1: 345,519 us/op
+# Warmup Iteration   2: 344,895 us/op
+Iteration   1: 344,517 us/op
+Iteration   2: 344,068 us/op
+Iteration   3: 337,983 us/op
+Iteration   4: 338,010 us/op
+Iteration   5: 338,251 us/op
+
+
+Result "it.auties.main.OptionBenchmark.sumSimple":
+  340,566 ±(99.9%) 13,119 us/op [Average]
+  (min, avg, max) = (337,983, 340,566, 344,517), stdev = 3,407
+  CI (99.9%): [327,446, 353,685] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:03:32
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+Benchmark                    Mode  Cnt    Score    Error  Units
+OptionBenchmark.sumNulls     avgt    5  772,831 ±  9,565  us/op
+OptionBenchmark.sumOptional  avgt    5  373,321 ±  8,012  us/op
+OptionBenchmark.sumSimple    avgt    5  340,566 ± 13,119  us/op
+
+Process finished with exit code 0

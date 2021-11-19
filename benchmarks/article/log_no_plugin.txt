@@ -1,0 +1,68 @@
+# Blackhole mode: full + dont-inline hint (default, use -Djmh.blackhole.autoDetect=true to auto-detect)
+# Warmup: 2 iterations, 10 s each
+# Measurement: 5 iterations, 10 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: it.auties.main.OptionBenchmark.sumOptional
+
+# Run progress: 33,33% complete, ETA 00:02:21
+# Fork: 1 of 1
+# Warmup Iteration   1: 3329,405 us/op
+# Warmup Iteration   2: 3149,826 us/op
+Iteration   1: 3219,403 us/op
+Iteration   2: 3090,174 us/op
+Iteration   3: 3089,701 us/op
+Iteration   4: 3073,717 us/op
+Iteration   5: 3072,617 us/op
+
+
+Result "it.auties.main.OptionBenchmark.sumOptional":
+  3109,123 ±(99.9%) 39,577 us/op [Average]
+  (min, avg, max) = (3072,617, 3109,123, 3219,403), stdev = 62,217
+  CI (99.9%): [2869,545, 3348,700] (assumes normal distribution)
+
+
+# JMH version: 1.33
+# VM version: JDK 17, OpenJDK 64-Bit Server VM, 17+35-2724
+# VM invoker: C:\Program Files\Java\jdk-17\bin\java.exe
+# VM options: --enable-preview -javaagent:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\lib\idea_rt.jar=53856:C:\Users\alaut\AppData\Local\JetBrains\Toolbox\apps\IDEA-C\ch-0\212.5457.46\bin -Dfile.encoding=UTF-8
+# Blackhole mode: full + dont-inline hint (default, use -Djmh.blackhole.autoDetect=true to auto-detect)
+# Warmup: 2 iterations, 10 s each
+# Measurement: 5 iterations, 10 s each
+# Timeout: 10 min per iteration
+# Threads: 1 thread, will synchronize iterations
+# Benchmark mode: Average time, time/op
+# Benchmark: it.auties.main.OptionBenchmark.sumSimple
+
+# Run progress: 66,67% complete, ETA 00:01:10
+# Fork: 1 of 1
+# Warmup Iteration   1: 346,523 us/op
+# Warmup Iteration   2: 345,453 us/op
+Iteration   1: 347,412 us/op
+Iteration   2: 341,937 us/op
+Iteration   3: 338,568 us/op
+Iteration   4: 342,620 us/op
+Iteration   5: 343,125 us/op
+
+
+Result "it.auties.main.OptionBenchmark.sumSimple":
+  342,732 ±(99.9%) 12,183 us/op [Average]
+  (min, avg, max) = (338,568, 342,732, 347,412), stdev = 3,164
+  CI (99.9%): [330,550, 354,915] (assumes normal distribution)
+
+
+# Run complete. Total time: 00:03:32
+
+REMEMBER: The numbers below are just data. To gain reusable insights, you need to follow up on
+why the numbers are the way they are. Use profilers (see -prof, -lprof), design factorial
+experiments, perform baseline and negative tests that provide experimental control, make sure
+the benchmarking environment is safe on JVM/OS/HW level, ask for reviews from the domain experts.
+Do not assume the numbers tell you what you want them to tell.
+
+Benchmark                    Mode  Cnt     Score     Error  Units
+OptionBenchmark.sumNulls     avgt    5   719,811 ±   2,310  us/op
+OptionBenchmark.sumOptional  avgt    5  3109,123 ±  39,577  us/op
+OptionBenchmark.sumSimple    avgt    5   342,732 ±  12,183  us/op
+
+Process finished with exit code 0
