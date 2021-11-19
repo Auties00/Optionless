@@ -7,7 +7,7 @@
     <version>1.0</version>
     <name>${project.groupId}:${project.artifactId}</name>
     <description>Desugar optional calls for a null safe type system with no performance hits</description>
-    <url>https://github.com/Auties00/optional</url>
+    <url>https://github.com/Auties00/OptionalDesugarer</url>
     <developers>
         <developer>
             <name>Alessandro Autiero</name>
@@ -22,8 +22,8 @@
         </license>
     </licenses>
     <scm>
-        <url>https://github.com/Auties00/optional/tree/master</url>
-        <connection>scm:git:https://github.com/Auties00/optional.git</connection>
+        <url>https://github.com/Auties00/OptionalDesugarer/tree/master</url>
+        <connection>scm:git:https://github.com/Auties00/OptionalDesugarer.git</connection>
       <tag>optional-1.0</tag>
   </scm>
     <distributionManagement>
