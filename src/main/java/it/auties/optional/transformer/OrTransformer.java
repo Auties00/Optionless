@@ -14,10 +14,11 @@ public class OrTransformer extends FunctionalTransformer {
 
     @Override
     public JCTree.JCStatement body() {
-        var checkCondition = maker.createNullCheck(createIdentifierForParameter(0), false);
+        var parameter = createIdentifierForParameter(0);
+        var checkCondition = maker.createNullCheck(parameter, false);
         var otherwise = Objects.requireNonNullElseGet(generatedInvocations.head, () -> createIdentifierForParameter(1));
         var conditional = maker.trees()
-                .Conditional(checkCondition, otherwise, maker.createNullType())
+                .Conditional(checkCondition, otherwise, parameter)
                 .setType(Elements.getReturnType(otherwise.type));
         return maker.trees()
                 .Return(conditional)

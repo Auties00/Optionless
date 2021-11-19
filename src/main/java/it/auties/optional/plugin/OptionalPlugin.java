@@ -55,6 +55,10 @@ public class OptionalPlugin implements Plugin, TaskListener {
         }
 
         var unit = (JCTree.JCCompilationUnit) event.getCompilationUnit();
+        if(debugTools.skip()){
+            return;
+        }
+
         translator.translate(unit);
         debugTools.debug(() -> System.err.println(unit));
     }
