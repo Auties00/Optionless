@@ -71,7 +71,7 @@ implementation 'com.github.auties00:optional:1.0'
 
 #### Gradle Kotlin DSL
 ```groovy
-implementation("com.github.auties00:reified:1.0")
+implementation("com.github.auties00:optional:1.0")
 ```
 
 ### Options
