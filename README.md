@@ -1,7 +1,7 @@
 # Optional Desugarer
 Desugar optional calls for a null safe type system with no performance hits
 
-### What and Why
+### Abstract
 One month ago, I stumbled upon an [interesting article](https://www.reddit.com/r/rust/comments/q99eqe/rust_option_30x_more_efficient_to_return_than/) on r/java, reposted from r/rust.
 In short, the article compares the performance of the Optional wrapper in Java with Rust's equivalent. As shown in the article, the performance hit of Optional is considerable, though
 it has been getting better with every JDK release. I was intrigued with the idea of resolving this issue and, considering that I had just finished working on [Reified](https://github.com/Auties00/reified) for Java,
